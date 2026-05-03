@@ -3,7 +3,7 @@
     "1": {
       "mind": "./page1.mind",
       "models": [
-        { "targetIndex": 0, "glb": "./a.glb" },
+        { "targetIndex": 0, "glb": "./a_default.glb" },
         { "targetIndex": 1, "glb": "./b.glb" },
         { "targetIndex": 2, "glb": "./c.glb" }
       ]
