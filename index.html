@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8" />
+    <title>AR 수신호 체험</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      .screen {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        font-family: sans-serif;
+      }
+      .screen.hidden { display: none; }
+
+      /* ── 페이지 입력 화면 ── */
+      #page-screen { background: #111; color: #fff; text-align: center; padding: 2rem; z-index: 9999; }
+      #page-screen h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+      #page-screen p  { font-size: 0.95rem; color: #aaa; margin-bottom: 2rem; }
+      #page-input-wrap { display: flex; gap: 0.6rem; }
+      #page-input {
+        font-size: 1.2rem; width: 90px; padding: 0.6rem 0.8rem;
+        border: 2px solid #444; border-radius: 0.8rem;
+        background: #222; color: #fff; text-align: center; outline: none;
+      }
+      #page-input:focus { border-color: #4f8ef7; }
+      #page-input.error { border-color: #e55; animation: shake 0.3s; }
+      @keyframes shake {
+        0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
+      }
+      #page-btn {
+        padding: 0.6rem 1.4rem; font-size: 1rem;
+        border: none; border-radius: 0.8rem;
+        background: #4f8ef7; color: #fff; cursor: pointer;
+      }
+      #page-btn:hover { background: #3a72d8; }
+      #page-error { margin-top: 0.8rem; color: #e55; font-size: 0.88rem; min-height: 1.2em; }
+
+      /* ── 로딩 화면 ── */
+      #loading-screen { background: #111; color: #fff; gap: 1.2rem; z-index: 9998; }
+      #loading-screen p { font-size: 1rem; color: #aaa; }
+      .spinner {
+        width: 42px; height: 42px;
+        border: 4px solid #333; border-top-color: #4f8ef7;
+        border-radius: 50%; animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── AR 오버레이 UI ── */
+      #scan-hint {
+        display: none; position: fixed;
+        bottom: 2rem; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.65); color: #fff;
+        font-size: 0.95rem; padding: 0.7rem 1.4rem;
+        border-radius: 2rem; z-index: 8888;
+        white-space: nowrap; pointer-events: none;
+        backdrop-filter: blur(6px);
+      }
+      .dot { display: inline-block; animation: blink 1.2s infinite; }
+      .dot:nth-child(2) { animation-delay: 0.2s; }
+      .dot:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+      #found-badge {
+        display: none; position: fixed;
+        top: 1.2rem; left: 50%; transform: translateX(-50%);
+        background: rgba(30,200,100,0.85); color: #fff;
+        font-size: 0.9rem; padding: 0.5rem 1.2rem;
+        border-radius: 2rem; z-index: 8888;
+        pointer-events: none; backdrop-filter: blur(6px);
+      }
+
+      #back-btn {
+        display: none; position: fixed;
+        top: 1rem; right: 1rem;
+        background: rgba(0,0,0,0.55); color: #fff;
+        border: none; border-radius: 2rem;
+        padding: 0.5rem 1rem; font-size: 0.88rem;
+        cursor: pointer; z-index: 8888;
+        backdrop-filter: blur(6px);
+      }
+
+      #ar-container { position: fixed; inset: 0; z-index: 0; }
+
+      @media (orientation: landscape) {
+        #page-screen h1 { font-size: 1.3rem; margin-bottom: 0.3rem; }
+        #page-screen p  { margin-bottom: 1rem; }
+        #scan-hint { bottom: 1rem; font-size: 0.85rem; padding: 0.5rem 1rem; }
+        #back-btn  { top: 0.5rem; right: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+        #found-badge { top: 0.5rem; font-size: 0.82rem; padding: 0.35rem 0.9rem; }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- ① 페이지 번호 입력 화면 -->
+    <div id="page-screen" class="screen">
+      <h1>AR 수신호 체험</h1>
+      <p>교재 페이지 번호를 입력하고<br>카메라로 마커를 비추세요.</p>
+      <div id="page-input-wrap">
+        <input id="page-input" type="number" min="1" placeholder="페이지" />
+        <button id="page-btn" onclick="loadPage()">시작</button>
+      </div>
+      <div id="page-error"></div>
+    </div>
+
+    <!-- ② 로딩 화면 -->
+    <div id="loading-screen" class="screen hidden">
+      <div class="spinner"></div>
+      <p id="loading-msg">파일 불러오는 중...</p>
+    </div>
+
+    <!-- ③ AR 오버레이 -->
+    <div id="scan-hint">
+      마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+    </div>
+    <div id="found-badge">✓ 마커 인식됨</div>
+    <button id="back-btn" onclick="goBack()">← 페이지 변경</button>
+
+    <!-- ④ A-Frame 씬 -->
+    <div id="ar-container"></div>
+
+    <script>
+      // ── pages.json에서 페이지 정보 로드 (프록시 없이 직접 사용) ──
+      async function resolveEntry(page) {
+        try {
+          const res = await fetch('./pages.json', { cache: 'no-cache' });
+          const data = await res.json();
+          const entry = data.pages && data.pages[String(page)];
+          if (entry && entry.mind) {
+            const models = entry.models
+              ? entry.models.map(m => ({ targetIndex: m.targetIndex, glb: m.glb }))
+              : [{ targetIndex: 0, glb: entry.glb }];
+            return { mind: entry.mind, models };
+          }
+        } catch (_) {}
+        // 로컬 파일 폴백
+        return {
+          mind: `./page${page}.mind`,
+          models: [{ targetIndex: 0, glb: `./page${page}.glb` }],
+        };
+      }
+
+      async function loadPage() {
+        const input = document.getElementById('page-input');
+        const errEl = document.getElementById('page-error');
+        const page  = input.value.trim();
+
+        input.classList.remove('error');
+        errEl.textContent = '';
+
+        if (!page || isNaN(page) || Number(page) < 1) {
+          input.classList.add('error');
+          errEl.textContent = '올바른 페이지 번호를 입력해주세요.';
+          setTimeout(() => input.classList.remove('error'), 400);
+          return;
+        }
+
+        setScreen('loading');
+        document.getElementById('loading-msg').textContent = '파일 불러오는 중...';
+
+        const { mind: mindUrl, models } = await resolveEntry(page);
+
+        document.getElementById('loading-msg').textContent = '마커 파일 불러오는 중...';
+
+        const container = document.getElementById('ar-container');
+        container.innerHTML = '';
+
+        const targetEntities = models.map(m => `
+          <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
+            <a-gltf-model rotation="0 0 0" position="0 0 0" scale="0.5 0.5 0.5"
+              src="${m.glb}" animation-mixer></a-gltf-model>
+          </a-entity>`
+        ).join('\n');
+
+        const scene = document.createElement('a-scene');
+        scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl}; autoStart: false;`);
+        scene.setAttribute('color-space', 'sRGB');
+        scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: false; antialias: false; precision: medium;');
+        scene.setAttribute('vr-mode-ui', 'enabled: false');
+        scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
+
+        scene.innerHTML = `
+          <a-assets timeout="30000"></a-assets>
+          <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+          ${targetEntities}
+        `;
+
+        container.appendChild(scene);
+
+        scene.addEventListener('loaded', () => {
+          const sys = scene.systems['mindar-image-system'];
+          if (sys) {
+            sys.start();
+            setScreen('ar');
+            bindTargetEvents(scene);
+          }
+        });
+      }
+
+      function bindTargetEvents(scene) {
+        const hint  = document.getElementById('scan-hint');
+        const badge = document.getElementById('found-badge');
+        let hideTimer;
+
+        hint.style.display = 'block';
+
+        scene.querySelectorAll('[mindar-image-target]').forEach(el => {
+          el.addEventListener('targetFound', () => {
+            hint.style.display = 'none';
+            badge.style.display = 'block';
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => { badge.style.display = 'none'; }, 2500);
+          });
+          el.addEventListener('targetLost', () => {
+            badge.style.display = 'none';
+            hint.style.display = 'block';
+          });
+        });
+      }
+
+      function goBack() {
+        const scene = document.querySelector('a-scene');
+        if (scene) {
+          const sys = scene.systems && scene.systems['mindar-image-system'];
+          if (sys) try { sys.stop(); } catch(_) {}
+        }
+        document.getElementById('ar-container').innerHTML = '';
+        document.getElementById('scan-hint').style.display = 'none';
+        document.getElementById('found-badge').style.display = 'none';
+        document.getElementById('back-btn').style.display = 'none';
+        setScreen('page');
+      }
+
+      function setScreen(name) {
+        document.getElementById('page-screen').classList.add('hidden');
+        document.getElementById('loading-screen').classList.add('hidden');
+        document.getElementById('back-btn').style.display = 'none';
+
+        if (name === 'page') {
+          document.getElementById('page-screen').classList.remove('hidden');
+        } else if (name === 'loading') {
+          document.getElementById('loading-screen').classList.remove('hidden');
+        } else if (name === 'ar') {
+          document.getElementById('back-btn').style.display = 'block';
+        }
+      }
+
+      document.getElementById('page-input')
+        .addEventListener('keydown', e => { if (e.key === 'Enter') loadPage(); });
+    </script>
+  </body>
+</html>
