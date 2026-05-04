@@ -10,3 +10,15 @@
     }
   }
 }
+{
+  "pages": {
+    "2": {
+      "mind": "./a1.mind",
+      "models": [
+        { "targetIndex": 0, "png": "./a1.png" },
+        { "targetIndex": 1, "glb": "./b.glb" },
+        { "targetIndex": 2, "glb": "./c.glb" }
+      ]
+    }
+  }
+}
