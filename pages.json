@@ -9,7 +9,7 @@
       ]
     },
     "2": {
-      "mind": "./mind_files/page2.mind",
+      "mind": "https://github.com/gmrfyd912/aismartbook/blob/main/mind_files/page2.mind",
       "models": [
         { "targetIndex": 0, "png": "https://github.com/gmrfyd912/aismartbook/blob/main/assets/a1.png" },
       ]
