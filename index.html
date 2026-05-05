@@ -51,7 +51,7 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      /* ── AR 오버레이 UI ── */
+      /* ── AR UI ── */
       #scan-hint {
         display: none; position: fixed;
         bottom: 2rem; left: 50%; transform: translateX(-50%);
@@ -115,34 +115,35 @@
       <p id="loading-msg">파일 불러오는 중...</p>
     </div>
 
-    <!-- ③ AR 오버레이 -->
+    <!-- ③ AR UI -->
     <div id="scan-hint">
       마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
     </div>
     <div id="found-badge">✓ 마커 인식됨</div>
     <button id="back-btn" onclick="goBack()">← 페이지 변경</button>
 
-    <!-- ④ A-Frame 씬 -->
+    <!-- ④ A-Frame -->
     <div id="ar-container"></div>
 
     <script>
-      // ── pages.json에서 페이지 정보 로드 (프록시 없이 직접 사용) ──
+      // ── JSON 파일 로드 ──
       async function resolveEntry(page) {
         try {
           const res = await fetch('./pages.json', { cache: 'no-cache' });
           const data = await res.json();
           const entry = data.pages && data.pages[String(page)];
           if (entry && entry.mind) {
+            // 수정: png 속성도 함께 가져오도록 변경
             const models = entry.models
-              ? entry.models.map(m => ({ targetIndex: m.targetIndex, glb: m.glb }))
+              ? entry.models.map(m => ({ targetIndex: m.targetIndex, glb: m.glb, png: m.png }))
               : [{ targetIndex: 0, glb: entry.glb }];
             return { mind: entry.mind, models };
           }
         } catch (_) {}
-        // 로컬 파일 폴백
+        // Fallback
         return {
-          mind: `./page${page}.mind`,
-          models: [{ targetIndex: 0, glb: `./page${page}.glb` }],
+          mind: `./mind_files/page${page}.mind`,
+          models: [{ targetIndex: 0, glb: `./assets/page${page}.glb` }],
         };
       }
 
@@ -171,12 +172,22 @@
         const container = document.getElementById('ar-container');
         container.innerHTML = '';
 
-        const targetEntities = models.map(m => `
-          <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
-            <a-gltf-model rotation="0 0 0" position="0 0 0" scale="0.5 0.5 0.5"
-              src="${m.glb}" animation-mixer></a-gltf-model>
-          </a-entity>`
-        ).join('\n');
+        // 수정: png와 glb를 구분하여 렌더링하도록 조건문 추가
+        const targetEntities = models.map(m => {
+          if (m.png) {
+            return `
+              <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
+                <a-image src="${m.png}" rotation="0 0 0" position="0 0 0" scale="1 1 1"></a-image>
+              </a-entity>`;
+          } else if (m.glb) {
+            return `
+              <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
+                <a-gltf-model rotation="0 0 0" position="0 0 0" scale="0.5 0.5 0.5"
+                  src="${m.glb}" animation-mixer></a-gltf-model>
+              </a-entity>`;
+          }
+          return '';
+        }).join('\n');
 
         const scene = document.createElement('a-scene');
         scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl}; autoStart: false;`);
