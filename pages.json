@@ -1,19 +1,19 @@
 {
   "pages": {
     "1": {
-      "mind": "./page1.mind",
+      "mind": "./mind_files/page1.mind",
       "models": [
-        { "targetIndex": 0, "glb": "./a_default.glb" },
-        { "targetIndex": 1, "glb": "./b.glb" },
-        { "targetIndex": 2, "glb": "./c.glb" }
+        { "targetIndex": 0, "glb": "./assets/a_default.glb" },
+        { "targetIndex": 1, "glb": "./assets/b.glb" },
+        { "targetIndex": 2, "glb": "./assets/c.glb" }
       ]
     },
     "2": {
-      "mind": "./page2.mind",
+      "mind": "./mind_files/page2.mind",
       "models": [
-        { "targetIndex": 0, "png": "./a1.png" },
-        { "targetIndex": 1, "glb": "./b.glb" },
-        { "targetIndex": 2, "glb": "./c.glb" }
+        { "targetIndex": 0, "png": "./assets/a1.png" },
+        { "targetIndex": 1, "glb": "./assets/b.glb" },
+        { "targetIndex": 2, "glb": "./assets/c.glb" }
       ]
     }
   }
