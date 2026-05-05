@@ -121,7 +121,7 @@
 
     <div id="scan-hint">마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
     <div id="found-badge">✓ 마커 인식됨</div>
-    <div id="pinch-hint">🤏 두 손가락으로 확대/축소</div>
+    <div id="pinch-hint">👆 드래그로 이동 &nbsp;·&nbsp; 🤏 두 손가락으로 확대/축소</div>
     <button id="back-btn" onclick="goBack()">← 페이지 변경</button>
 
     <div id="ar-container"></div>
@@ -133,7 +133,6 @@
           const data = await res.json();
           const entry = data.pages && data.pages[String(page)];
           if (entry && entry.mind) {
-            // img 키 통합: png/jpg/jpeg/webp/gif/svg/img 어느 키든 → m.img 로 정규화
             const IMG_KEYS = ['img', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'];
             const models = entry.models
               ? entry.models.map(m => {
@@ -183,7 +182,6 @@
 
         const targetEntitiesHtml = models.map((m, i) => {
           if (m.img) {
-            // jpg/jpeg는 알파채널 없음 → alphaTest 불필요하지만 png와 공용으로 써도 무방
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
                 <a-plane
@@ -231,7 +229,7 @@
             sys.start();
             setScreen('ar');
             bindTargetEvents(scene);
-            initPinchZoom(scene);
+            initGestures(scene);
           }
         }
 
@@ -242,13 +240,27 @@
         }
       }
 
-      function initPinchZoom(scene) {
-        const MIN_SCALE = 0.1;
-        const MAX_SCALE = 5.0;
+      function initGestures(scene) {
+        const MIN_SCALE   = 0.1;
+        const MAX_SCALE   = 5.0;
+        const BASE_FACTOR = 0.002;
 
-        let startDist    = null;
-        let activeKids   = [];
+        let isPinching  = false;
+
+        let pinchDist   = null;
+        let pinchKids   = [];
         const baseScales = new WeakMap();
+
+        let isDragging  = false;
+        let dragLastX   = 0;
+        let dragLastY   = 0;
+        let dragKids    = [];
+        const posOffsets = new WeakMap();
+
+        function getOffset(child) {
+          if (!posOffsets.has(child)) posOffsets.set(child, { x: 0, y: 0 });
+          return posOffsets.get(child);
+        }
 
         function touchDist(touches) {
           const dx = touches[0].clientX - touches[1].clientX;
@@ -272,36 +284,71 @@
 
         container.addEventListener('touchstart', e => {
           if (e.touches.length === 2) {
-            startDist  = touchDist(e.touches);
-            activeKids = visibleChildren();
-            activeKids.forEach(child => {
+            isPinching = true;
+            isDragging = false;
+
+            pinchDist = touchDist(e.touches);
+            pinchKids = visibleChildren();
+            pinchKids.forEach(child => {
               const s = child.object3D.scale;
               baseScales.set(child, { x: s.x, y: s.y, z: s.z });
             });
+
+          } else if (e.touches.length === 1 && !isPinching) {
+            isDragging = true;
+            dragLastX  = e.touches[0].clientX;
+            dragLastY  = e.touches[0].clientY;
+            dragKids   = visibleChildren();
           }
         }, { passive: true });
 
         container.addEventListener('touchmove', e => {
-          if (e.touches.length !== 2 || startDist === null || activeKids.length === 0) return;
-          const ratio = Math.min(MAX_SCALE, Math.max(MIN_SCALE, touchDist(e.touches) / startDist));
-          activeKids.forEach(child => {
-            const base = baseScales.get(child);
-            if (!base) return;
-            const nx = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.x * ratio));
-            const ny = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.y * ratio));
-            const nz = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.z * ratio));
-            child.object3D.scale.set(nx, ny, nz);
-          });
+          if (e.touches.length === 2 && pinchDist !== null) {
+            const ratio = Math.min(MAX_SCALE, Math.max(MIN_SCALE,
+              touchDist(e.touches) / pinchDist
+            ));
+            pinchKids.forEach(child => {
+              const base = baseScales.get(child);
+              if (!base) return;
+              child.object3D.scale.set(
+                Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.x * ratio)),
+                Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.y * ratio)),
+                Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.z * ratio))
+              );
+            });
+
+          } else if (e.touches.length === 1 && isDragging && dragKids.length > 0) {
+            const dx = e.touches[0].clientX - dragLastX;
+            const dy = e.touches[0].clientY - dragLastY;
+            dragLastX = e.touches[0].clientX;
+            dragLastY = e.touches[0].clientY;
+
+            dragKids.forEach(child => {
+              const scale  = child.object3D.scale.x || 1;
+              const factor = BASE_FACTOR / scale;
+              const offset = getOffset(child);
+              offset.x += dx * factor;
+              offset.y -= dy * factor;
+              child.object3D.position.set(offset.x, offset.y, 0);
+            });
+          }
         }, { passive: true });
 
         container.addEventListener('touchend', e => {
           if (e.touches.length < 2) {
-            activeKids.forEach(child => {
-              const s = child.object3D.scale;
-              baseScales.set(child, { x: s.x, y: s.y, z: s.z });
-            });
-            startDist  = null;
-            activeKids = [];
+            if (isPinching) {
+              pinchKids.forEach(child => {
+                const s = child.object3D.scale;
+                baseScales.set(child, { x: s.x, y: s.y, z: s.z });
+              });
+              pinchDist  = null;
+              pinchKids  = [];
+              isPinching = false;
+            }
+          }
+          if (e.touches.length === 0) {
+            isDragging = false;
+            dragKids   = [];
           }
         }, { passive: true });
       }
