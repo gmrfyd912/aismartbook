@@ -4,7 +4,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
     <title>AR 수신호 체험</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <!-- 수정 1: MindAR과 가장 호환성이 좋은 A-Frame 1.4.2 버전으로 변경 -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
     <style>
@@ -18,7 +19,6 @@
       }
       .screen.hidden { display: none; }
 
-      /* ── 페이지 입력 화면 ── */
       #page-screen { background: #111; color: #fff; text-align: center; padding: 2rem; z-index: 9999; }
       #page-screen h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
       #page-screen p  { font-size: 0.95rem; color: #aaa; margin-bottom: 2rem; }
@@ -30,9 +30,7 @@
       }
       #page-input:focus { border-color: #4f8ef7; }
       #page-input.error { border-color: #e55; animation: shake 0.3s; }
-      @keyframes shake {
-        0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
-      }
+      @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
       #page-btn {
         padding: 0.6rem 1.4rem; font-size: 1rem;
         border: none; border-radius: 0.8rem;
@@ -41,7 +39,6 @@
       #page-btn:hover { background: #3a72d8; }
       #page-error { margin-top: 0.8rem; color: #e55; font-size: 0.88rem; min-height: 1.2em; }
 
-      /* ── 로딩 화면 ── */
       #loading-screen { background: #111; color: #fff; gap: 1.2rem; z-index: 9998; }
       #loading-screen p { font-size: 1rem; color: #aaa; }
       .spinner {
@@ -51,7 +48,6 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      /* ── AR UI ── */
       #scan-hint {
         display: none; position: fixed;
         bottom: 2rem; left: 50%; transform: translateX(-50%);
@@ -98,7 +94,6 @@
   </head>
   <body>
 
-    <!-- ① 페이지 번호 입력 화면 -->
     <div id="page-screen" class="screen">
       <h1>AR 수신호 체험</h1>
       <p>교재 페이지 번호를 입력하고<br>카메라로 마커를 비추세요.</p>
@@ -109,38 +104,30 @@
       <div id="page-error"></div>
     </div>
 
-    <!-- ② 로딩 화면 -->
     <div id="loading-screen" class="screen hidden">
       <div class="spinner"></div>
       <p id="loading-msg">파일 불러오는 중...</p>
     </div>
 
-    <!-- ③ AR UI -->
-    <div id="scan-hint">
-      마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
-    </div>
+    <div id="scan-hint">마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
     <div id="found-badge">✓ 마커 인식됨</div>
     <button id="back-btn" onclick="goBack()">← 페이지 변경</button>
 
-    <!-- ④ A-Frame -->
     <div id="ar-container"></div>
 
     <script>
-      // ── JSON 파일 로드 ──
       async function resolveEntry(page) {
         try {
           const res = await fetch('./pages.json', { cache: 'no-cache' });
           const data = await res.json();
           const entry = data.pages && data.pages[String(page)];
           if (entry && entry.mind) {
-            // 수정: png 속성도 함께 가져오도록 변경
             const models = entry.models
               ? entry.models.map(m => ({ targetIndex: m.targetIndex, glb: m.glb, png: m.png }))
               : [{ targetIndex: 0, glb: entry.glb }];
             return { mind: entry.mind, models };
           }
         } catch (_) {}
-        // Fallback
         return {
           mind: `./mind_files/page${page}.mind`,
           models: [{ targetIndex: 0, glb: `./assets/page${page}.glb` }],
@@ -170,39 +157,44 @@
         document.getElementById('loading-msg').textContent = '마커 파일 불러오는 중...';
 
         const container = document.getElementById('ar-container');
-        container.innerHTML = '';
+        
+        // 수정 2: <a-assets>를 활용한 완벽한 Preloading 구조 도입
+        const assetsHtml = models.map((m, i) => {
+          let html = '';
+          if (m.png) html += `<img id="asset-png-${i}" src="${m.png}" crossorigin="anonymous">`;
+          if (m.glb) html += `<a-asset-item id="asset-glb-${i}" src="${m.glb}"></a-asset-item>`;
+          return html;
+        }).join('\n');
 
-        // 수정: png와 glb를 구분하여 렌더링하도록 조건문 추가
-        const targetEntities = models.map(m => {
+        // 수정 3: src 속성에 직접 경로를 넣는 대신, Preload된 Asset ID 참조
+        const targetEntitiesHtml = models.map((m, i) => {
           if (m.png) {
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
-                <a-image src="${m.png}" rotation="0 0 0" position="0 0 0" scale="1 1 1"></a-image>
+                <a-image src="#asset-png-${i}" rotation="0 0 0" position="0 0 0" scale="1 1 1" material="transparent: true"></a-image>
               </a-entity>`;
           } else if (m.glb) {
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
-                <a-gltf-model rotation="0 0 0" position="0 0 0" scale="0.5 0.5 0.5"
-                  src="${m.glb}" animation-mixer></a-gltf-model>
+                <a-gltf-model src="#asset-glb-${i}" rotation="0 0 0" position="0 0 0" scale="0.5 0.5 0.5" animation-mixer></a-gltf-model>
               </a-entity>`;
           }
           return '';
         }).join('\n');
 
-        const scene = document.createElement('a-scene');
-        scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl}; autoStart: false;`);
-        scene.setAttribute('color-space', 'sRGB');
-        scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: false; antialias: false; precision: medium;');
-        scene.setAttribute('vr-mode-ui', 'enabled: false');
-        scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
-
-        scene.innerHTML = `
-          <a-assets timeout="30000"></a-assets>
-          <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-          ${targetEntities}
+        // 수정 4: DOM Injection 방식을 innerHTML로 한 번에 주입하여 Lifecycle 충돌 방지
+        container.innerHTML = `
+          <a-scene mindar-image="imageTargetSrc: ${mindUrl}; autoStart: false;" color-space="sRGB" renderer="colorManagement: true; physicallyCorrectLights: true;" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+            <a-assets timeout="30000">
+              ${assetsHtml}
+            </a-assets>
+            <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+            <a-light type="ambient" color="#FFFFFF" intensity="1.2"></a-light>
+            ${targetEntitiesHtml}
+          </a-scene>
         `;
 
-        container.appendChild(scene);
+        const scene = container.querySelector('a-scene');
 
         scene.addEventListener('loaded', () => {
           const sys = scene.systems['mindar-image-system'];
@@ -262,8 +254,7 @@
         }
       }
 
-      document.getElementById('page-input')
-        .addEventListener('keydown', e => { if (e.key === 'Enter') loadPage(); });
+      document.getElementById('page-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadPage(); });
     </script>
   </body>
 </html>
