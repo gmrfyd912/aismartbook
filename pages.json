@@ -12,8 +12,6 @@
       "mind": "./mind_files/page2.mind",
       "models": [
         { "targetIndex": 0, "png": "./assets/a1.png" },
-        { "targetIndex": 1, "glb": "./assets/b.glb" },
-        { "targetIndex": 2, "glb": "./assets/c.glb" }
       ]
     }
   }
