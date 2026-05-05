@@ -1,17 +1,17 @@
 {
   "pages": {
     "1": {
-      "mind": "https://github.com/gmrfyd912/aismartbook/blob/main/mind_files/page1.mind",
+      "mind": "./mind_files/page1.mind",
       "models": [
-        { "targetIndex": 0, "glb": "https://github.com/gmrfyd912/aismartbook/blob/main/assets/a_default.glb" },
-        { "targetIndex": 1, "glb": "https://github.com/gmrfyd912/aismartbook/blob/main/assets/b.glb" },
-        { "targetIndex": 2, "glb": "https://github.com/gmrfyd912/aismartbook/blob/main/assets/c.glb" }
+        { "targetIndex": 0, "glb": "./assets/a_default.glb" },
+        { "targetIndex": 1, "glb": "./assets/b.glb" },
+        { "targetIndex": 2, "glb": "./assets/c.glb" }
       ]
     },
     "2": {
-      "mind": "https://github.com/gmrfyd912/aismartbook/blob/main/mind_files/page2.mind",
+      "mind": "./mind_files/page2.mind",
       "models": [
-        { "targetIndex": 0, "png": "https://github.com/gmrfyd912/aismartbook/blob/main/assets/a1.png" },
+        { "targetIndex": 0, "png": "./assets/a1.png" }
       ]
     }
   }
