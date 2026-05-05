@@ -4,7 +4,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="utf-8" />
     <title>AR 수신호 체험</title>
-    <!-- 수정 1: MindAR과 가장 호환성이 좋은 A-Frame 1.4.2 버전으로 변경 -->
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
@@ -157,8 +156,7 @@
         document.getElementById('loading-msg').textContent = '마커 파일 불러오는 중...';
 
         const container = document.getElementById('ar-container');
-        
-        // 수정 2: <a-assets>를 활용한 완벽한 Preloading 구조 도입
+
         const assetsHtml = models.map((m, i) => {
           let html = '';
           if (m.png) html += `<img id="asset-png-${i}" src="${m.png}" crossorigin="anonymous">`;
@@ -166,12 +164,20 @@
           return html;
         }).join('\n');
 
-        // 수정 3: src 속성에 직접 경로를 넣는 대신, Preload된 Asset ID 참조
         const targetEntitiesHtml = models.map((m, i) => {
           if (m.png) {
+            // [수정] <a-image material="transparent:true"> 대신 <a-plane>으로 교체
+            // material 안에 src를 함께 지정해야 텍스처가 제대로 연결됨
+            // width/height="1" 로 마커 크기에 맞춤 (필요 시 이미지 비율대로 조정)
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
-                <a-image src="#asset-png-${i}" rotation="0 0 0" position="0 0 0" scale="1 1 1" material="transparent: true"></a-image>
+                <a-plane
+                  width="1"
+                  height="1"
+                  rotation="0 0 0"
+                  position="0 0 0"
+                  material="shader: flat; src: #asset-png-${i}; transparent: true; alphaTest: 0.1; side: double">
+                </a-plane>
               </a-entity>`;
           } else if (m.glb) {
             return `
@@ -182,28 +188,45 @@
           return '';
         }).join('\n');
 
-        // 수정 4: DOM Injection 방식을 innerHTML로 한 번에 주입하여 Lifecycle 충돌 방지
         container.innerHTML = `
-          <a-scene mindar-image="imageTargetSrc: ${mindUrl}; autoStart: false;" color-space="sRGB" renderer="colorManagement: true; physicallyCorrectLights: true;" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+          <a-scene
+            mindar-image="imageTargetSrc: ${mindUrl}; autoStart: false;"
+            color-space="sRGB"
+            renderer="colorManagement: true; physicallyCorrectLights: true;"
+            vr-mode-ui="enabled: false"
+            device-orientation-permission-ui="enabled: false">
+
             <a-assets timeout="30000">
               ${assetsHtml}
             </a-assets>
+
             <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-            <a-light type="ambient" color="#FFFFFF" intensity="1.2"></a-light>
+
+            <!-- [수정] ambient 단독이면 GLB가 검게 보임 → directional 조명 추가 -->
+            <a-light type="ambient" color="#FFFFFF" intensity="1.0"></a-light>
+            <a-light type="directional" color="#FFFFFF" intensity="1.5" position="1 2 1"></a-light>
+
             ${targetEntitiesHtml}
           </a-scene>
         `;
 
         const scene = container.querySelector('a-scene');
 
-        scene.addEventListener('loaded', () => {
+        // [수정] hasLoaded 먼저 확인 → 빠른 환경에서 loaded 이벤트 누락 방지
+        function onSceneLoaded() {
           const sys = scene.systems['mindar-image-system'];
           if (sys) {
             sys.start();
             setScreen('ar');
             bindTargetEvents(scene);
           }
-        });
+        }
+
+        if (scene.hasLoaded) {
+          onSceneLoaded();
+        } else {
+          scene.addEventListener('loaded', onSceneLoaded, { once: true });
+        }
       }
 
       function bindTargetEvents(scene) {
