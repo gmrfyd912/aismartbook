@@ -11,7 +11,9 @@
     "2": {
       "mind": "./mind_files/page2.mind",
       "models": [
-        { "targetIndex": 0, "png": "./assets/a1.png" }
+        { "targetIndex": 0, "png": "./assets/a1.png" },
+        { "targetIndex": 1, "jpg": "./assets/a2.jpg" },
+        { "targetIndex": 2, "jpg": "./assets/a3.jpg" }
       ]
     }
   }
