@@ -133,8 +133,13 @@
           const data = await res.json();
           const entry = data.pages && data.pages[String(page)];
           if (entry && entry.mind) {
+            // img 키 통합: png/jpg/jpeg/webp/gif/svg/img 어느 키든 → m.img 로 정규화
+            const IMG_KEYS = ['img', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'];
             const models = entry.models
-              ? entry.models.map(m => ({ targetIndex: m.targetIndex, glb: m.glb, png: m.png }))
+              ? entry.models.map(m => {
+                  const imgSrc = IMG_KEYS.reduce((found, k) => found || m[k] || null, null);
+                  return { targetIndex: m.targetIndex, glb: m.glb, img: imgSrc };
+                })
               : [{ targetIndex: 0, glb: entry.glb }];
             return { mind: entry.mind, models };
           }
@@ -171,13 +176,14 @@
 
         const assetsHtml = models.map((m, i) => {
           let html = '';
-          if (m.png) html += `<img id="asset-png-${i}" src="${m.png}" crossorigin="anonymous">`;
+          if (m.img) html += `<img id="asset-img-${i}" src="${m.img}" crossorigin="anonymous">`;
           if (m.glb) html += `<a-asset-item id="asset-glb-${i}" src="${m.glb}"></a-asset-item>`;
           return html;
         }).join('\n');
 
         const targetEntitiesHtml = models.map((m, i) => {
-          if (m.png) {
+          if (m.img) {
+            // jpg/jpeg는 알파채널 없음 → alphaTest 불필요하지만 png와 공용으로 써도 무방
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
                 <a-plane
@@ -185,7 +191,7 @@
                   height="1"
                   rotation="0 0 0"
                   position="0 0 0"
-                  material="shader: flat; src: #asset-png-${i}; transparent: true; alphaTest: 0.1; side: double">
+                  material="shader: flat; src: #asset-img-${i}; transparent: true; alphaTest: 0.05; side: double">
                 </a-plane>
               </a-entity>`;
           } else if (m.glb) {
