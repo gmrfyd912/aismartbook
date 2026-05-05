@@ -80,6 +80,16 @@
         backdrop-filter: blur(6px);
       }
 
+      #pinch-hint {
+        display: none; position: fixed;
+        bottom: 5rem; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.55); color: #fff;
+        font-size: 0.82rem; padding: 0.4rem 1rem;
+        border-radius: 2rem; z-index: 8888;
+        pointer-events: none; backdrop-filter: blur(6px);
+        white-space: nowrap;
+      }
+
       #ar-container { position: fixed; inset: 0; z-index: 0; }
 
       @media (orientation: landscape) {
@@ -88,6 +98,7 @@
         #scan-hint { bottom: 1rem; font-size: 0.85rem; padding: 0.5rem 1rem; }
         #back-btn  { top: 0.5rem; right: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; }
         #found-badge { top: 0.5rem; font-size: 0.82rem; padding: 0.35rem 0.9rem; }
+        #pinch-hint { bottom: 3.5rem; }
       }
     </style>
   </head>
@@ -110,6 +121,7 @@
 
     <div id="scan-hint">마커를 찾는 중<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
     <div id="found-badge">✓ 마커 인식됨</div>
+    <div id="pinch-hint">🤏 두 손가락으로 확대/축소</div>
     <button id="back-btn" onclick="goBack()">← 페이지 변경</button>
 
     <div id="ar-container"></div>
@@ -166,9 +178,6 @@
 
         const targetEntitiesHtml = models.map((m, i) => {
           if (m.png) {
-            // [수정] <a-image material="transparent:true"> 대신 <a-plane>으로 교체
-            // material 안에 src를 함께 지정해야 텍스처가 제대로 연결됨
-            // width/height="1" 로 마커 크기에 맞춤 (필요 시 이미지 비율대로 조정)
             return `
               <a-entity mindar-image-target="targetIndex: ${m.targetIndex}">
                 <a-plane
@@ -201,8 +210,6 @@
             </a-assets>
 
             <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-            <!-- [수정] ambient 단독이면 GLB가 검게 보임 → directional 조명 추가 -->
             <a-light type="ambient" color="#FFFFFF" intensity="1.0"></a-light>
             <a-light type="directional" color="#FFFFFF" intensity="1.5" position="1 2 1"></a-light>
 
@@ -212,13 +219,13 @@
 
         const scene = container.querySelector('a-scene');
 
-        // [수정] hasLoaded 먼저 확인 → 빠른 환경에서 loaded 이벤트 누락 방지
         function onSceneLoaded() {
           const sys = scene.systems['mindar-image-system'];
           if (sys) {
             sys.start();
             setScreen('ar');
             bindTargetEvents(scene);
+            initPinchZoom(scene);
           }
         }
 
@@ -229,10 +236,76 @@
         }
       }
 
+      function initPinchZoom(scene) {
+        const MIN_SCALE = 0.1;
+        const MAX_SCALE = 5.0;
+
+        let startDist    = null;
+        let activeKids   = [];
+        const baseScales = new WeakMap();
+
+        function touchDist(touches) {
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function visibleChildren() {
+          const kids = [];
+          scene.querySelectorAll('[mindar-image-target]').forEach(target => {
+            if (target.object3D && target.object3D.visible) {
+              Array.from(target.children).forEach(child => {
+                if (child.object3D) kids.push(child);
+              });
+            }
+          });
+          return kids;
+        }
+
+        const container = document.getElementById('ar-container');
+
+        container.addEventListener('touchstart', e => {
+          if (e.touches.length === 2) {
+            startDist  = touchDist(e.touches);
+            activeKids = visibleChildren();
+            activeKids.forEach(child => {
+              const s = child.object3D.scale;
+              baseScales.set(child, { x: s.x, y: s.y, z: s.z });
+            });
+          }
+        }, { passive: true });
+
+        container.addEventListener('touchmove', e => {
+          if (e.touches.length !== 2 || startDist === null || activeKids.length === 0) return;
+          const ratio = Math.min(MAX_SCALE, Math.max(MIN_SCALE, touchDist(e.touches) / startDist));
+          activeKids.forEach(child => {
+            const base = baseScales.get(child);
+            if (!base) return;
+            const nx = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.x * ratio));
+            const ny = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.y * ratio));
+            const nz = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.z * ratio));
+            child.object3D.scale.set(nx, ny, nz);
+          });
+        }, { passive: true });
+
+        container.addEventListener('touchend', e => {
+          if (e.touches.length < 2) {
+            activeKids.forEach(child => {
+              const s = child.object3D.scale;
+              baseScales.set(child, { x: s.x, y: s.y, z: s.z });
+            });
+            startDist  = null;
+            activeKids = [];
+          }
+        }, { passive: true });
+      }
+
       function bindTargetEvents(scene) {
-        const hint  = document.getElementById('scan-hint');
-        const badge = document.getElementById('found-badge');
+        const hint      = document.getElementById('scan-hint');
+        const badge     = document.getElementById('found-badge');
+        const pinchHint = document.getElementById('pinch-hint');
         let hideTimer;
+        let pinchTimer;
 
         hint.style.display = 'block';
 
@@ -242,9 +315,14 @@
             badge.style.display = 'block';
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => { badge.style.display = 'none'; }, 2500);
+
+            pinchHint.style.display = 'block';
+            clearTimeout(pinchTimer);
+            pinchTimer = setTimeout(() => { pinchHint.style.display = 'none'; }, 3000);
           });
           el.addEventListener('targetLost', () => {
             badge.style.display = 'none';
+            pinchHint.style.display = 'none';
             hint.style.display = 'block';
           });
         });
@@ -259,6 +337,7 @@
         document.getElementById('ar-container').innerHTML = '';
         document.getElementById('scan-hint').style.display = 'none';
         document.getElementById('found-badge').style.display = 'none';
+        document.getElementById('pinch-hint').style.display = 'none';
         document.getElementById('back-btn').style.display = 'none';
         setScreen('page');
       }
