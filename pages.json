@@ -24,6 +24,14 @@
         { "targetIndex": 2, "png": "./assets/3.png" },
         { "targetIndex": 3, "png": "./assets/4.png" }
       ]
+    },
+      "4": {
+      "mind": "./mind_files/page4.mind",
+      "models": [
+        { "targetIndex": 0, "png": "./assets/3_1.png" },
+        { "targetIndex": 1, "png": "./assets/3_2.png" },
+        { "targetIndex": 2, "png": "./assets/3_3.png" }
+      ]
     }
   }
 }
