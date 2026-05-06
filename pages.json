@@ -15,6 +15,15 @@
         { "targetIndex": 1, "jpg": "./assets/a2.jpg" },
         { "targetIndex": 2, "jpg": "./assets/a3.jpg" }
       ]
+    },
+    "3": {
+      "mind": "./mind_files/page3.mind",
+      "models": [
+        { "targetIndex": 0, "png": "./assets/1.png" },
+        { "targetIndex": 1, "png": "./assets/2.png" },
+        { "targetIndex": 2, "png": "./assets/3.png" }
+        { "targetIndex": 3, "png": "./assets/4.png" }
+      ]
     }
   }
 }
