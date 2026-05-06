@@ -19,10 +19,10 @@
     "3": {
       "mind": "./mind_files/page3.mind",
       "models": [
-        { "targetIndex": 0, "PNG": "./assets/1.PNG" },
-        { "targetIndex": 1, "PNG": "./assets/2.PNG" },
-        { "targetIndex": 2, "PNG": "./assets/3.PNG" }
-        { "targetIndex": 3, "PNG": "./assets/4.PNG" }
+        { "targetIndex": 0, "png": "./assets/1.png" },
+        { "targetIndex": 1, "png": "./assets/2.png" },
+        { "targetIndex": 2, "png": "./assets/3.png" },
+        { "targetIndex": 3, "png": "./assets/4.png" }
       ]
     }
   }
