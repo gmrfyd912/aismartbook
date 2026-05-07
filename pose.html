@@ -485,29 +485,36 @@
   }
 
   // ── Inference loop ────────────────────────────────────────
-  let lastVideoTime = -1;
+  // Android Chrome: 하드웨어 디코딩 영상을 직접 넘기면 실패할 수 있어
+  // offscreen canvas에 프레임을 그린 뒤 MediaPipe에 전달
+  const offscreen    = document.createElement('canvas');
+  const offscreenCtx = offscreen.getContext('2d');
+  let lastInferenceMs = 0;
 
   function startLoop() {
     if (rafId) return;
     function frame() {
       rafId = requestAnimationFrame(frame);
 
-      // 영상이 준비 안 됐거나 일시정지 상태이면 스킵
-      if (video.readyState < 2 || video.paused) return;
+      if (video.readyState < 2 || video.paused || !video.videoWidth) return;
 
-      canvas.width  = video.videoWidth  || 640;
-      canvas.height = video.videoHeight || 480;
+      // 100ms마다 추론 (~10fps), currentTime 체크 제거
+      const now = Date.now();
+      if (now - lastInferenceMs < 100) return;
+      lastInferenceMs = now;
 
-      // 새 프레임이 없으면 스킵 (MediaPipe 공식 예제 패턴)
-      if (video.currentTime === lastVideoTime) return;
-      lastVideoTime = video.currentTime;
+      // 비디오 프레임을 offscreen canvas에 복사
+      offscreen.width  = video.videoWidth;
+      offscreen.height = video.videoHeight;
+      offscreenCtx.drawImage(video, 0, 0);
 
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       let result;
       try {
-        // 타임스탬프는 Date.now() 사용 (MediaPipe 공식 권장)
-        result = poseLandmarker.detectForVideo(video, Date.now());
+        result = poseLandmarker.detectForVideo(offscreen, now);
       } catch (e) {
         return;
       }
