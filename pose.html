@@ -108,15 +108,30 @@
       background: rgba(255,255,255,0.05);
     }
 
-    /* No-pose overlay */
+    /* No-pose hint banner (카메라 위에 얇게 표시, 영상은 그대로 보임) */
     #no-pose-msg {
-      position: absolute; inset: 0; z-index: 5;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-      flex-direction: column; gap: 0.6rem;
+      position: absolute; top: 3.8rem; left: 50%; transform: translateX(-50%);
+      z-index: 8; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+      pointer-events: none;
     }
     #no-pose-msg.hidden { display: none; }
-    #no-pose-msg p { font-size: 1rem; color: #ccc; text-align: center; padding: 0 2rem; }
+    #no-pose-msg p {
+      font-size: 0.85rem; color: #fff; text-align: center; white-space: nowrap;
+      background: rgba(0,0,0,0.6); padding: 0.4rem 1rem;
+      border-radius: 2rem; backdrop-filter: blur(6px);
+    }
+    /* 카메라 오류일 때만 전체 다크 오버레이 */
+    #cam-error-overlay {
+      position: absolute; inset: 0; z-index: 9;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.82); text-align: center; padding: 2rem; gap: 1rem;
+    }
+    #cam-error-overlay.hidden { display: none; }
+    #cam-error-overlay p { color: #fcc; font-size: 0.9rem; line-height: 1.7; white-space: pre-line; }
+    #cam-error-overlay button {
+      padding: 0.65rem 1.4rem; background: #4f8ef7; color: #fff;
+      border: none; border-radius: 0.8rem; font-size: 0.9rem; cursor: pointer;
+    }
 
     /* Score panel */
     #score-panel {
@@ -244,9 +259,15 @@
     <div class="ref-label">참고 동작</div>
   </div>
 
+  <!-- 포즈 미감지 시 상단 안내 배너 (카메라 영상 위에 얇게) -->
   <div id="no-pose-msg">
-    <p id="no-pose-text">전신이 카메라에<br>보이도록 서주세요</p>
-    <button id="cam-retry-btn" style="display:none;margin-top:1rem;padding:0.6rem 1.4rem;background:#4f8ef7;color:#fff;border:none;border-radius:0.8rem;font-size:0.9rem;cursor:pointer" onclick="retryCam()">카메라 다시 시도</button>
+    <p id="no-pose-text">전신이 카메라에 보이도록 서주세요</p>
+  </div>
+
+  <!-- 카메라 오류 시만 전체 어두운 오버레이 -->
+  <div id="cam-error-overlay" class="hidden">
+    <p id="cam-error-text">카메라를 사용할 수 없습니다.</p>
+    <button onclick="retryCam()">카메라 다시 시도</button>
   </div>
 
   <div id="hold-ring">
@@ -376,6 +397,7 @@
 
     resetHold();
     document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('cam-error-overlay').classList.add('hidden');
     document.getElementById('no-pose-msg').classList.remove('hidden');
     document.getElementById('score-number').textContent = '0';
     document.getElementById('score-bar').style.width = '0%';
@@ -388,9 +410,11 @@
   async function startCamera() {
     if (cameraStream) return;
 
-    showNoPoseMsg('카메라 시작 중...', false);
+    // 에러 오버레이 숨기고 힌트 배너 표시
+    document.getElementById('cam-error-overlay').classList.add('hidden');
+    document.getElementById('no-pose-text').textContent = '카메라 시작 중...';
+    document.getElementById('no-pose-msg').classList.remove('hidden');
 
-    // Try progressively looser constraints
     const attempts = [
       { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } } },
       { video: { facingMode: { ideal: 'user' } } },
@@ -409,33 +433,26 @@
     }
 
     if (!cameraStream) {
+      document.getElementById('no-pose-msg').classList.add('hidden');
       const isPermission = lastErr?.name === 'NotAllowedError' || lastErr?.name === 'PermissionDeniedError';
-      showNoPoseMsg(
-        isPermission
-          ? '카메라 권한을 허용해주세요.\n브라우저 주소창 옆 자물쇠 아이콘을 눌러 카메라를 허용하세요.'
-          : `카메라를 열 수 없습니다.\n(${lastErr?.name || lastErr?.message})`,
-        true
-      );
+      document.getElementById('cam-error-text').textContent = isPermission
+        ? '카메라 권한을 허용해주세요.\n브라우저 주소창 옆 자물쇠 아이콘을 눌러\n카메라를 허용한 뒤 다시 시도하세요.'
+        : `카메라를 열 수 없습니다.\n(${lastErr?.name || lastErr?.message})`;
+      document.getElementById('cam-error-overlay').classList.remove('hidden');
       return;
     }
 
+    // autoplay + muted + playsinline 속성에 의존 (video.play() 호출 시 모바일 제스처 컨텍스트 이탈 가능)
     video.srcObject = cameraStream;
-    try {
-      await Promise.race([
-        new Promise(r => video.addEventListener('loadedmetadata', r, { once: true })),
-        new Promise(r => setTimeout(r, 5000))
-      ]);
-      await video.play().catch(() => {});
-    } catch (_) {}
 
-    showNoPoseMsg('전신이 카메라에<br>보이도록 서주세요', false);
+    // 영상이 준비될 때까지 대기 (최대 6초)
+    await Promise.race([
+      new Promise(r => video.addEventListener('loadedmetadata', r, { once: true })),
+      new Promise(r => setTimeout(r, 6000))
+    ]);
+
+    document.getElementById('no-pose-text').textContent = '전신이 카메라에 보이도록 서주세요';
     startLoop();
-  }
-
-  function showNoPoseMsg(html, showRetry) {
-    document.getElementById('no-pose-text').innerHTML = html;
-    document.getElementById('cam-retry-btn').style.display = showRetry ? 'block' : 'none';
-    document.getElementById('no-pose-msg').classList.remove('hidden');
   }
 
   window.retryCam = function() {
