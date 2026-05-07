@@ -1,40 +1,76 @@
 {
   "poses": [
     {
-      "id": "stop_right",
-      "name": "정지 신호",
-      "description": "오른팔을 어깨 높이로 수평으로 뻗어 정지를 알립니다",
+      "id": "bokwon",
+      "name": "보권 사용",
+      "description": "보권(빨간 기)을 사용하여 정지·주의 신호를 보냅니다",
       "color": "#e74c3c",
-      "icon": "🤚",
-      "video": null,
-      "sequence": null
+      "icon": "🚩",
+      "video": "assets/videos/보권사용.mp4",
+      "sequence": "pose-sequences/보권사용.json"
     },
     {
-      "id": "proceed",
-      "name": "진행 신호",
-      "description": "오른팔을 머리 위로 들어 앞으로 나아가도록 신호합니다",
+      "id": "jukwon",
+      "name": "주권 사용",
+      "description": "주권(노란 기)을 사용하여 진행·서행 신호를 보냅니다",
+      "color": "#f39c12",
+      "icon": "🏴",
+      "video": "assets/videos/주권사용.mp4",
+      "sequence": "pose-sequences/주권사용.json"
+    },
+    {
+      "id": "move_up",
+      "name": "위로 올리기",
+      "description": "팔을 아래에서 위로 올려 진행·상승 신호를 지시합니다",
       "color": "#27ae60",
       "icon": "☝️",
-      "video": null,
-      "sequence": null
+      "video": "assets/videos/위로올리기.mp4",
+      "sequence": "pose-sequences/위로올리기.json"
+    },
+    {
+      "id": "move_down",
+      "name": "아래로 내리기",
+      "description": "팔을 위에서 아래로 내려 정지·하강 신호를 지시합니다",
+      "color": "#e67e22",
+      "icon": "👇",
+      "video": "assets/videos/아래로내리기.mp4",
+      "sequence": "pose-sequences/아래로내리기.json"
+    },
+    {
+      "id": "horizontal",
+      "name": "수평 이동",
+      "description": "팔을 수평으로 좌우로 이동하여 방향 전환을 신호합니다",
+      "color": "#3498db",
+      "icon": "↔️",
+      "video": "assets/videos/수평이동.mp4",
+      "sequence": "pose-sequences/수평이동.json"
+    },
+    {
+      "id": "drive_dir",
+      "name": "운전 방향 지시",
+      "description": "손으로 운전자의 진행 방향을 직접 지시합니다",
+      "color": "#9b59b6",
+      "icon": "👆",
+      "video": "assets/videos/운전방향지시.mp4",
+      "sequence": "pose-sequences/운전방향지시.json"
+    },
+    {
+      "id": "slow_up",
+      "name": "천천히 조금씩 올리기",
+      "description": "팔을 천천히 조금씩 위로 올려 서행 진행을 지시합니다",
+      "color": "#1abc9c",
+      "icon": "🌱",
+      "video": "assets/videos/천천히조금씩위로올리기.mp4",
+      "sequence": "pose-sequences/천천히조금씩위로올리기.json"
     },
     {
       "id": "slow_down",
-      "name": "서행 신호",
-      "description": "오른팔을 수평보다 낮게 뻗어 속도를 줄이도록 신호합니다",
-      "color": "#f39c12",
-      "icon": "✋",
-      "video": null,
-      "sequence": null
-    },
-    {
-      "id": "both_stop",
-      "name": "전면 정지",
-      "description": "양팔을 어깨 높이로 수평으로 뻗어 전면 정지를 알립니다",
-      "color": "#8e44ad",
-      "icon": "🙌",
-      "video": null,
-      "sequence": null
+      "name": "천천히 조금씩 내리기",
+      "description": "팔을 천천히 조금씩 아래로 내려 서행·감속을 지시합니다",
+      "color": "#95a5a6",
+      "icon": "🐢",
+      "video": "assets/videos/천천히조금씩아래로내리기.mp4",
+      "sequence": "pose-sequences/천천히조금씩아래로내리기.json"
     }
   ]
 }
