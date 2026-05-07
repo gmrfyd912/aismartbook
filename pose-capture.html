@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta charset="utf-8">
+  <title>기준 포즈 캡처 (관리자용)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; display: flex; flex-direction: column; }
+
+    header { background: #1a1a2e; padding: 1rem 1.2rem; display: flex; align-items: center; gap: 1rem; }
+    header a { color: #4f8ef7; text-decoration: none; font-size: 0.9rem; }
+    header h1 { font-size: 1.1rem; }
+    header span { font-size: 0.75rem; color: #f39c12; background: rgba(243,156,18,0.15); padding: 0.2rem 0.5rem; border-radius: 1rem; }
+
+    #main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 1rem; gap: 1rem; }
+
+    #camera-section { width: 100%; max-width: 480px; position: relative; aspect-ratio: 3/4; background: #111; border-radius: 1rem; overflow: hidden; }
+    #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+
+    #status-badge {
+      position: absolute; top: 0.8rem; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.7); color: #aaa; font-size: 0.8rem;
+      padding: 0.3rem 0.9rem; border-radius: 2rem; z-index: 2; white-space: nowrap;
+    }
+    #status-badge.detected { background: rgba(39,174,96,0.85); color: #fff; }
+
+    #controls { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 0.8rem; }
+
+    label { font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 0.3rem; }
+    input[type=text], select {
+      width: 100%; padding: 0.6rem 0.8rem;
+      background: #1a1a2e; border: 1px solid #333; border-radius: 0.6rem;
+      color: #fff; font-size: 0.95rem; outline: none;
+    }
+    input[type=text]:focus, select:focus { border-color: #4f8ef7; }
+
+    #capture-btn {
+      padding: 0.85rem; font-size: 1rem; font-weight: bold;
+      background: #4f8ef7; color: #fff; border: none; border-radius: 0.8rem; cursor: pointer;
+    }
+    #capture-btn:disabled { background: #333; color: #666; cursor: default; }
+    #capture-btn:not(:disabled):active { background: #3a72d8; }
+
+    #output-section { width: 100%; max-width: 480px; display: none; flex-direction: column; gap: 0.6rem; }
+    #output-section h3 { font-size: 0.9rem; color: #4f8ef7; }
+    #json-output {
+      background: #111; border: 1px solid #333; border-radius: 0.6rem;
+      padding: 0.8rem; font-size: 0.72rem; font-family: monospace;
+      white-space: pre; overflow-x: auto; color: #adf; max-height: 220px; overflow-y: auto;
+    }
+    #copy-btn {
+      padding: 0.55rem; font-size: 0.85rem;
+      background: #27ae60; color: #fff; border: none; border-radius: 0.6rem; cursor: pointer;
+    }
+    #copy-btn:active { background: #1e8449; }
+
+    #guide { width: 100%; max-width: 480px; background: #1a1a2e; border-radius: 0.8rem; padding: 1rem; font-size: 0.82rem; color: #aaa; line-height: 1.7; }
+    #guide strong { color: #fff; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="./index.html">← AR 체험</a>
+  <h1>기준 포즈 캡처</h1>
+  <span>관리자용</span>
+</header>
+
+<div id="main">
+
+  <div id="camera-section">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div id="status-badge">카메라 초기화 중...</div>
+  </div>
+
+  <div id="controls">
+    <div>
+      <label>동작 ID (영문, pose-data.json의 id값)</label>
+      <input type="text" id="pose-id" placeholder="예: stop_right">
+    </div>
+    <div>
+      <label>동작 이름</label>
+      <input type="text" id="pose-name" placeholder="예: 정지 신호">
+    </div>
+    <button id="capture-btn" disabled onclick="capturePose()">포즈 캡처</button>
+  </div>
+
+  <div id="output-section">
+    <h3>캡처된 랜드마크 JSON — pose-data.json의 "landmarks" 필드에 붙여넣으세요</h3>
+    <div id="json-output"></div>
+    <button id="copy-btn" onclick="copyJson()">클립보드에 복사</button>
+  </div>
+
+  <div id="guide">
+    <strong>사용법</strong><br>
+    1. 신호수가 기준 동작을 취합니다<br>
+    2. 동작 ID / 이름을 입력합니다<br>
+    3. [포즈 캡처] 버튼을 누릅니다<br>
+    4. 출력된 JSON을 복사해 <code>pose-data.json</code>의 해당 동작 <code>"landmarks"</code> 필드에 붙여넣습니다<br><br>
+    <strong>주의:</strong> 전신이 카메라에 보이는 상태에서 캡처해야 정확도가 높습니다
+  </div>
+
+</div>
+
+<script type="module">
+  import { PoseLandmarker, FilesetResolver, DrawingUtils }
+    from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+
+  const video    = document.getElementById('video');
+  const canvas   = document.getElementById('canvas');
+  const ctx      = canvas.getContext('2d');
+  const badge    = document.getElementById('status-badge');
+  const captureBtn = document.getElementById('capture-btn');
+
+  let poseLandmarker = null;
+  let lastResult     = null;
+  let rafId          = null;
+  let drawUtils      = null;
+
+  async function init() {
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+      );
+      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      drawUtils = new DrawingUtils(ctx);
+      await startCamera();
+    } catch (e) {
+      badge.textContent = '초기화 실패: ' + e.message;
+    }
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      video.srcObject = stream;
+      await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+      badge.textContent = '사람을 감지하는 중...';
+      loop();
+    } catch (e) {
+      badge.textContent = '카메라 접근 실패';
+    }
+  }
+
+  function loop() {
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+
+    if (video.readyState >= 2) {
+      const now = performance.now();
+      const result = poseLandmarker.detectForVideo(video, now);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Mirror canvas to match CSS-mirrored video
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.translate(-canvas.width, 0);
+
+      if (result.landmarks && result.landmarks.length > 0) {
+        drawUtils.drawConnectors(result.landmarks[0], PoseLandmarker.POSE_CONNECTIONS,
+          { color: '#00ffcc', lineWidth: 2 });
+        drawUtils.drawLandmarks(result.landmarks[0],
+          { color: '#00ffcc', fillColor: '#004d40', radius: 4 });
+        lastResult = result;
+
+        badge.textContent = '포즈 감지됨';
+        badge.classList.add('detected');
+        captureBtn.disabled = false;
+      } else {
+        lastResult = null;
+        badge.textContent = '사람을 화면 중앙에 맞춰주세요';
+        badge.classList.remove('detected');
+        captureBtn.disabled = true;
+      }
+
+      ctx.restore();
+    }
+
+    rafId = requestAnimationFrame(loop);
+  }
+
+  window.capturePose = function() {
+    if (!lastResult || !lastResult.landmarks[0]) return;
+
+    const id   = document.getElementById('pose-id').value.trim() || 'pose_' + Date.now();
+    const name = document.getElementById('pose-name').value.trim() || '(이름 없음)';
+
+    const lm = lastResult.landmarks[0].map(p => ({
+      x: +p.x.toFixed(4),
+      y: +p.y.toFixed(4),
+      z: +p.z.toFixed(4),
+      visibility: +(p.visibility ?? 1).toFixed(3)
+    }));
+
+    const output = {
+      id,
+      name,
+      capturedAt: new Date().toISOString(),
+      landmarks: lm
+    };
+
+    const jsonStr = JSON.stringify(output, null, 2);
+    document.getElementById('json-output').textContent = jsonStr;
+    document.getElementById('output-section').style.display = 'flex';
+
+    // Freeze canvas for visual confirmation
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    setTimeout(() => { if (!rafId) rafId = requestAnimationFrame(loop); }, 2000);
+  };
+
+  window.copyJson = async function() {
+    const text = document.getElementById('json-output').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = '복사 완료!';
+      setTimeout(() => { btn.textContent = '클립보드에 복사'; }, 2000);
+    } catch (_) {}
+  };
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta charset="utf-8">
+  <title>신호수 동작 연습</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; height: 100dvh; overflow: hidden; }
+
+    .screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
+    .screen.hidden { display: none !important; }
+
+    /* ── Loading screen ── */
+    #loading-screen {
+      align-items: center; justify-content: center; gap: 1rem;
+      background: #0a0a0f;
+    }
+    #loading-screen p { color: #aaa; font-size: 0.95rem; }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 4px solid #222; border-top-color: #4f8ef7;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Select screen ── */
+    #select-screen { background: #0a0a0f; overflow-y: auto; }
+    #select-header {
+      padding: 1.2rem 1.2rem 0.8rem;
+      display: flex; flex-direction: column; gap: 0.3rem;
+    }
+    #select-header .nav { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.4rem; }
+    #select-header .nav a { color: #4f8ef7; text-decoration: none; font-size: 0.88rem; }
+    #select-header h1 { font-size: 1.35rem; }
+    #select-header p  { font-size: 0.85rem; color: #888; line-height: 1.5; }
+
+    #pose-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.8rem; padding: 0.8rem 1rem 2rem;
+    }
+
+    .pose-card {
+      background: #1a1a2e; border-radius: 1rem;
+      padding: 1.2rem 1rem; cursor: pointer;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      border: 2px solid transparent; transition: border-color 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pose-card:active { transform: scale(0.97); }
+    .pose-card .icon { font-size: 2rem; line-height: 1; }
+    .pose-card .card-name { font-size: 0.95rem; font-weight: bold; }
+    .pose-card .card-desc { font-size: 0.75rem; color: #888; line-height: 1.4; }
+    .pose-card .card-badge {
+      font-size: 0.7rem; padding: 0.2rem 0.5rem;
+      border-radius: 1rem; width: fit-content;
+      font-weight: bold; margin-top: 0.2rem;
+    }
+
+    /* ── Practice screen ── */
+    #practice-screen { position: relative; background: #000; }
+
+    /* Camera layer */
+    #camera-wrap { position: absolute; inset: 0; }
+    #video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; object-fit: cover;
+      transform: scaleX(-1);
+    }
+    #overlay-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; object-fit: cover;
+      z-index: 1;
+    }
+
+    /* Top bar */
+    #top-bar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.8rem 1rem; background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+    #back-to-list-btn {
+      background: rgba(0,0,0,0.55); color: #fff;
+      border: none; border-radius: 2rem;
+      padding: 0.45rem 1rem; font-size: 0.82rem; cursor: pointer;
+      backdrop-filter: blur(8px); -webkit-tap-highlight-color: transparent;
+    }
+    #current-pose-name {
+      font-size: 0.95rem; font-weight: bold;
+      background: rgba(0,0,0,0.55); padding: 0.35rem 0.9rem;
+      border-radius: 2rem; backdrop-filter: blur(8px);
+    }
+
+    /* Reference thumbnail */
+    #ref-thumb {
+      position: absolute; top: 3.5rem; right: 0.8rem; z-index: 10;
+      background: rgba(0,0,0,0.7); border-radius: 0.7rem;
+      padding: 0.4rem; width: 80px; text-align: center;
+      backdrop-filter: blur(8px);
+    }
+    #ref-thumb img { width: 100%; border-radius: 0.4rem; display: block; }
+    #ref-thumb .ref-label { font-size: 0.62rem; color: #aaa; margin-top: 0.3rem; }
+    #ref-thumb .ref-diagram {
+      width: 100%; aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.5rem; border-radius: 0.4rem;
+      background: rgba(255,255,255,0.05);
+    }
+
+    /* No-pose overlay */
+    #no-pose-msg {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      flex-direction: column; gap: 0.6rem;
+    }
+    #no-pose-msg.hidden { display: none; }
+    #no-pose-msg p { font-size: 1rem; color: #ccc; text-align: center; padding: 0 2rem; }
+
+    /* Score panel */
+    #score-panel {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+      padding: 0.8rem 1rem 1.2rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.88) 60%, transparent 100%);
+    }
+    #score-row { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.4rem; }
+    #score-number {
+      font-size: 2.6rem; font-weight: bold; line-height: 1;
+      font-variant-numeric: tabular-nums; transition: color 0.3s;
+    }
+    #score-unit { font-size: 0.9rem; color: #888; }
+    #score-bar-wrap {
+      height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px;
+      overflow: hidden; margin-bottom: 0.5rem;
+    }
+    #score-bar {
+      height: 100%; width: 0%; border-radius: 4px;
+      transition: width 0.25s ease, background 0.3s;
+      background: #e74c3c;
+    }
+    #feedback-text { font-size: 0.88rem; color: #ddd; min-height: 1.2em; }
+
+    /* Hold indicator */
+    #hold-ring {
+      position: absolute; bottom: 7.5rem; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: none;
+    }
+    #hold-ring svg { width: 54px; height: 54px; }
+    #hold-ring .ring-bg  { fill: none; stroke: rgba(255,255,255,0.15); stroke-width: 5; }
+    #hold-ring .ring-fill {
+      fill: none; stroke: #4f8ef7; stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 140; stroke-dashoffset: 140;
+      transform-origin: center; transform: rotate(-90deg);
+      transition: stroke-dashoffset 0.1s linear, stroke 0.3s;
+    }
+    #hold-ring .ring-icon { font-size: 1.3rem; }
+
+    /* Success overlay */
+    #success-overlay {
+      position: absolute; inset: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+    }
+    #success-overlay.hidden { display: none; }
+    #success-box {
+      background: #1a1a2e; border-radius: 1.5rem;
+      padding: 2rem 2.5rem; text-align: center;
+      display: flex; flex-direction: column; gap: 0.8rem; align-items: center;
+      animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.7); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    #success-icon { font-size: 3rem; }
+    #success-score { font-size: 2.5rem; font-weight: bold; color: #4f8ef7; }
+    #success-msg   { font-size: 1rem; color: #ddd; }
+    #success-actions { display: flex; gap: 0.7rem; margin-top: 0.5rem; }
+    .success-btn {
+      padding: 0.65rem 1.3rem; border: none; border-radius: 0.8rem;
+      font-size: 0.88rem; cursor: pointer; font-weight: bold;
+    }
+    #retry-btn { background: #4f8ef7; color: #fff; }
+    #list-btn  { background: #333; color: #ddd; }
+
+    /* Error screen */
+    #error-screen {
+      align-items: center; justify-content: center; gap: 1rem;
+      background: #0a0a0f; padding: 2rem; text-align: center;
+    }
+    #error-screen p { color: #e55; font-size: 0.95rem; line-height: 1.6; }
+    #error-screen button {
+      padding: 0.65rem 1.5rem; background: #4f8ef7; color: #fff;
+      border: none; border-radius: 0.8rem; font-size: 0.9rem; cursor: pointer;
+    }
+
+    @media (min-height: 700px) {
+      #score-number { font-size: 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-screen" class="screen">
+  <div class="spinner"></div>
+  <p id="loading-msg">AI 포즈 분석 모델 로딩 중...</p>
+</div>
+
+<!-- Error -->
+<div id="error-screen" class="screen hidden">
+  <p id="error-msg">초기화에 실패했습니다.</p>
+  <button onclick="location.reload()">다시 시도</button>
+</div>
+
+<!-- Select -->
+<div id="select-screen" class="screen hidden">
+  <div id="select-header">
+    <div class="nav"><a href="./index.html">← AR 체험으로</a></div>
+    <h1>신호수 동작 연습</h1>
+    <p>동작을 선택하고 전면 카메라로 따라해보세요<br>점수가 85점 이상을 2초간 유지하면 성공입니다</p>
+  </div>
+  <div id="pose-grid"></div>
+</div>
+
+<!-- Practice -->
+<div id="practice-screen" class="screen hidden">
+
+  <div id="camera-wrap">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <div id="top-bar">
+    <button id="back-to-list-btn" onclick="backToList()">← 목록</button>
+    <div id="current-pose-name">정지 신호</div>
+  </div>
+
+  <div id="ref-thumb">
+    <div class="ref-diagram" id="ref-diagram"></div>
+    <img id="ref-image" src="" alt="참고 동작" style="display:none">
+    <div class="ref-label">참고 동작</div>
+  </div>
+
+  <div id="no-pose-msg">
+    <p>전신이 카메라에<br>보이도록 서주세요</p>
+  </div>
+
+  <div id="hold-ring">
+    <svg viewBox="0 0 54 54">
+      <circle class="ring-bg"   cx="27" cy="27" r="22"/>
+      <circle class="ring-fill" cx="27" cy="27" r="22" id="ring-path"/>
+    </svg>
+  </div>
+
+  <div id="score-panel">
+    <div id="score-row">
+      <span id="score-number">0</span>
+      <span id="score-unit">점</span>
+    </div>
+    <div id="score-bar-wrap"><div id="score-bar"></div></div>
+    <div id="feedback-text">카메라 앞에서 동작을 따라해보세요</div>
+  </div>
+
+  <div id="success-overlay" class="hidden">
+    <div id="success-box">
+      <div id="success-icon">🎉</div>
+      <div id="success-score">100점</div>
+      <div id="success-msg">훌륭한 자세예요!</div>
+      <div id="success-actions">
+        <button class="success-btn" id="retry-btn" onclick="retryPose()">다시 도전</button>
+        <button class="success-btn" id="list-btn"  onclick="backToList()">목록으로</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  import { PoseLandmarker, FilesetResolver, DrawingUtils }
+    from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+
+  // ── State ─────────────────────────────────────────────────
+  let poseLandmarker = null;
+  let drawUtils      = null;
+  let poseData       = null;
+  let currentPose    = null;
+  let cameraStream   = null;
+  let rafId          = null;
+
+  const SUCCESS_THRESHOLD = 85;   // score needed
+  const SUCCESS_HOLD_MS   = 2000; // hold duration
+  let holdStart   = null;
+  let holdActive  = false;
+
+  const video  = document.getElementById('video');
+  const canvas = document.getElementById('overlay-canvas');
+  const ctx    = canvas.getContext('2d');
+
+  // ── Boot ──────────────────────────────────────────────────
+  async function boot() {
+    try {
+      document.getElementById('loading-msg').textContent = 'AI 포즈 분석 모델 로딩 중...';
+      const [vision, data] = await Promise.all([
+        FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+        ),
+        fetch('./pose-data.json').then(r => r.json())
+      ]);
+
+      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      drawUtils = new DrawingUtils(ctx);
+      poseData  = data.poses;
+
+      buildSelectScreen();
+      setScreen('select');
+    } catch (e) {
+      document.getElementById('error-msg').textContent =
+        `초기화 실패: ${e.message}\n인터넷 연결과 카메라 권한을 확인해주세요.`;
+      setScreen('error');
+    }
+  }
+
+  // ── Select screen ─────────────────────────────────────────
+  const ICONS = { stop_right: '🤚', proceed: '☝️', slow_down: '✋', both_stop: '🙌' };
+
+  function buildSelectScreen() {
+    const grid = document.getElementById('pose-grid');
+    grid.innerHTML = poseData.map(p => `
+      <div class="pose-card" style="border-color:${p.color}22"
+           onclick="startPose('${p.id}')">
+        <div class="icon">${ICONS[p.id] || '🖐️'}</div>
+        <div class="card-name">${p.name}</div>
+        <div class="card-desc">${p.description}</div>
+        <div class="card-badge" style="background:${p.color}22;color:${p.color}">
+          ${p.angleRules.length}개 체크포인트
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── Start practice ────────────────────────────────────────
+  window.startPose = async function(id) {
+    currentPose = poseData.find(p => p.id === id);
+    if (!currentPose) return;
+
+    document.getElementById('current-pose-name').textContent = currentPose.name;
+    document.getElementById('current-pose-name').style.background =
+      `${currentPose.color}33`;
+
+    const refDiagram = document.getElementById('ref-diagram');
+    const refImage   = document.getElementById('ref-image');
+    refDiagram.textContent = ICONS[id] || '🖐️';
+    if (currentPose.image) {
+      refImage.src = currentPose.image;
+      refImage.style.display = 'block';
+      refDiagram.style.display = 'none';
+    } else {
+      refImage.style.display = 'none';
+      refDiagram.style.display = 'flex';
+    }
+
+    resetHold();
+    document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('score-number').textContent = '0';
+    document.getElementById('score-bar').style.width = '0%';
+    document.getElementById('feedback-text').textContent = currentPose.hint;
+
+    setScreen('practice');
+    await startCamera();
+  };
+
+  async function startCamera() {
+    if (cameraStream) return; // already running
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      });
+      video.srcObject = cameraStream;
+      await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+      startLoop();
+    } catch (e) {
+      document.getElementById('feedback-text').textContent =
+        '카메라 권한이 필요합니다. 브라우저 설정을 확인해주세요.';
+    }
+  }
+
+  function stopCamera() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+    video.srcObject = null;
+  }
+
+  // ── Inference loop ────────────────────────────────────────
+  let lastInferenceTime = 0;
+  const INFERENCE_INTERVAL_MS = 66; // ~15 fps
+
+  function startLoop() {
+    if (rafId) return;
+    function frame(now) {
+      rafId = requestAnimationFrame(frame);
+      if (now - lastInferenceTime < INFERENCE_INTERVAL_MS) return;
+      lastInferenceTime = now;
+
+      canvas.width  = video.videoWidth  || 640;
+      canvas.height = video.videoHeight || 480;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (video.readyState < 2) return;
+
+      const result = poseLandmarker.detectForVideo(video, now);
+      const lms = result.landmarks?.[0];
+
+      // Mirror canvas to match video CSS transform
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.translate(-canvas.width, 0);
+
+      if (lms && lms.length >= 33) {
+        document.getElementById('no-pose-msg').classList.add('hidden');
+        drawSkeleton(lms, currentPose?.color || '#00ffcc');
+        const score = currentPose ? calculateScore(lms, currentPose.angleRules) : 0;
+        updateScoreUI(score, lms);
+        updateHold(score, now);
+      } else {
+        document.getElementById('no-pose-msg').classList.remove('hidden');
+        resetHold();
+        setScoreDisplay(0, '카메라 앞에서 동작을 따라해보세요');
+      }
+
+      ctx.restore();
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  // ── Skeleton drawing ─────────────────────────────────────
+  function drawSkeleton(lms, color) {
+    // Draw connections manually to use custom color
+    const w = canvas.width, h = canvas.height;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+
+    for (const [a, b] of PoseLandmarker.POSE_CONNECTIONS) {
+      const p1 = lms[a], p2 = lms[b];
+      if (!p1 || !p2) continue;
+      if ((p1.visibility ?? 1) < 0.3 || (p2.visibility ?? 1) < 0.3) continue;
+      ctx.beginPath();
+      ctx.moveTo(p1.x * w, p1.y * h);
+      ctx.lineTo(p2.x * w, p2.y * h);
+      ctx.stroke();
+    }
+
+    // Joint dots
+    ctx.fillStyle = color;
+    for (const p of lms) {
+      if ((p.visibility ?? 1) < 0.3) continue;
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Pose scoring ──────────────────────────────────────────
+  function getAngleDeg(a, vertex, c) {
+    const v1 = { x: a.x - vertex.x, y: a.y - vertex.y };
+    const v2 = { x: c.x - vertex.x, y: c.y - vertex.y };
+    const dot  = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.hypot(v1.x, v1.y);
+    const mag2 = Math.hypot(v2.x, v2.y);
+    if (mag1 * mag2 === 0) return 0;
+    const cos = Math.min(1, Math.max(-1, dot / (mag1 * mag2)));
+    return Math.acos(cos) * 180 / Math.PI;
+  }
+
+  function ruleScore(actual, expected, tolerance) {
+    const diff = Math.abs(actual - expected);
+    if (diff <= tolerance) return 100;
+    const decay = tolerance * 2;
+    if (diff >= tolerance + decay) return 0;
+    return Math.max(0, 100 * (1 - (diff - tolerance) / decay));
+  }
+
+  function calculateScore(lms, rules) {
+    let totalWeighted = 0, totalWeight = 0;
+    for (const rule of rules) {
+      const [i1, i2, i3] = rule.landmarks;
+      const angle = getAngleDeg(lms[i1], lms[i2], lms[i3]);
+      const s = ruleScore(angle, rule.expected, rule.tolerance);
+      totalWeighted += s * rule.weight;
+      totalWeight   += rule.weight;
+    }
+    return totalWeight > 0 ? Math.round(totalWeighted / totalWeight) : 0;
+  }
+
+  function getBestFeedback(lms, rules) {
+    let worstScore = Infinity, worstRule = null;
+    for (const rule of rules) {
+      const [i1, i2, i3] = rule.landmarks;
+      const angle  = getAngleDeg(lms[i1], lms[i2], lms[i3]);
+      const s = ruleScore(angle, rule.expected, rule.tolerance);
+      if (s < worstScore) {
+        worstScore = s;
+        const diff = angle - rule.expected;
+        worstRule = { score: s, feedback: diff < 0 ? rule.feedbackLow : rule.feedbackHigh };
+      }
+    }
+    return worstRule;
+  }
+
+  // ── Score UI ──────────────────────────────────────────────
+  function updateScoreUI(score, lms) {
+    let feedback = '';
+    if (score >= SUCCESS_THRESHOLD) {
+      feedback = '완벽해요! 자세를 유지하세요';
+    } else if (score >= 70) {
+      feedback = '거의 다 왔어요!';
+    } else if (score >= 40) {
+      const best = getBestFeedback(lms, currentPose.angleRules);
+      feedback = best ? best.feedback : '자세를 교정해보세요';
+    } else {
+      feedback = currentPose.hint;
+    }
+    setScoreDisplay(score, feedback);
+  }
+
+  function setScoreDisplay(score, feedback) {
+    const numEl  = document.getElementById('score-number');
+    const barEl  = document.getElementById('score-bar');
+    const textEl = document.getElementById('feedback-text');
+
+    numEl.textContent  = score;
+    barEl.style.width  = score + '%';
+    textEl.textContent = feedback;
+
+    const color = score >= SUCCESS_THRESHOLD ? '#27ae60'
+                : score >= 70               ? '#f39c12'
+                : score >= 40               ? '#e67e22'
+                :                            '#e74c3c';
+    numEl.style.color     = color;
+    barEl.style.background = color;
+  }
+
+  // ── Hold-to-succeed mechanic ──────────────────────────────
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 22; // r=22
+
+  function updateHold(score, now) {
+    const ring = document.getElementById('hold-ring');
+    const path = document.getElementById('ring-path');
+
+    if (score >= SUCCESS_THRESHOLD) {
+      ring.style.display = 'block';
+      if (!holdActive) { holdActive = true; holdStart = now; }
+
+      const elapsed = now - holdStart;
+      const progress = Math.min(1, elapsed / SUCCESS_HOLD_MS);
+      const offset = RING_CIRCUMFERENCE * (1 - progress);
+      path.style.strokeDashoffset = offset;
+      path.style.stroke = progress >= 1 ? '#27ae60' : '#4f8ef7';
+
+      if (progress >= 1) showSuccess(score);
+    } else {
+      resetHold();
+    }
+  }
+
+  function resetHold() {
+    holdActive = false;
+    holdStart  = null;
+    const ring = document.getElementById('hold-ring');
+    const path = document.getElementById('ring-path');
+    ring.style.display = 'none';
+    path.style.strokeDashoffset = RING_CIRCUMFERENCE;
+  }
+
+  function showSuccess(score) {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    document.getElementById('success-score').textContent = score + '점';
+    const msgs = ['훌륭한 자세예요!', '완벽해요!', '정확한 동작입니다!'];
+    document.getElementById('success-msg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+    document.getElementById('success-overlay').classList.remove('hidden');
+    resetHold();
+  }
+
+  // ── Navigation ────────────────────────────────────────────
+  window.retryPose = function() {
+    document.getElementById('success-overlay').classList.add('hidden');
+    resetHold();
+    document.getElementById('score-number').textContent = '0';
+    document.getElementById('score-bar').style.width = '0%';
+    document.getElementById('feedback-text').textContent = currentPose?.hint || '';
+    startLoop();
+  };
+
+  window.backToList = function() {
+    stopCamera();
+    currentPose = null;
+    document.getElementById('success-overlay').classList.add('hidden');
+    resetHold();
+    setScreen('select');
+  };
+
+  function setScreen(name) {
+    ['loading', 'error', 'select', 'practice'].forEach(id => {
+      document.getElementById(id + '-screen').classList.add('hidden');
+    });
+    document.getElementById(name + '-screen').classList.remove('hidden');
+  }
+
+  boot();
+</script>
+</body>
+</html>
