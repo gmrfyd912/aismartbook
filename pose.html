@@ -333,17 +333,26 @@
         fetch('./pose-data.json').then(r => r.json())
       ]);
 
-      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-          delegate: 'GPU'
-        },
+      // GPU 시도 → 실패 시 CPU 폴백
+      const modelPath = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+      const baseConfig = {
         runningMode: 'VIDEO',
         numPoses: 1,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
+        minPoseDetectionConfidence: 0.3,
+        minPosePresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3
+      };
+      try {
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelPath, delegate: 'GPU' },
+          ...baseConfig
+        });
+      } catch (_) {
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelPath, delegate: 'CPU' },
+          ...baseConfig
+        });
+      }
 
       drawUtils = new DrawingUtils(ctx);
       poseData  = data.poses;
@@ -476,24 +485,34 @@
   }
 
   // ── Inference loop ────────────────────────────────────────
-  let lastInferenceTime = 0;
-  const INFERENCE_INTERVAL_MS = 66; // ~15 fps
+  let lastVideoTime = -1;
 
   function startLoop() {
     if (rafId) return;
-    function frame(now) {
+    function frame() {
       rafId = requestAnimationFrame(frame);
-      if (now - lastInferenceTime < INFERENCE_INTERVAL_MS) return;
-      lastInferenceTime = now;
+
+      // 영상이 준비 안 됐거나 일시정지 상태이면 스킵
+      if (video.readyState < 2 || video.paused) return;
 
       canvas.width  = video.videoWidth  || 640;
       canvas.height = video.videoHeight || 480;
+
+      // 새 프레임이 없으면 스킵 (MediaPipe 공식 예제 패턴)
+      if (video.currentTime === lastVideoTime) return;
+      lastVideoTime = video.currentTime;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (video.readyState < 2) return;
+      let result;
+      try {
+        // 타임스탬프는 Date.now() 사용 (MediaPipe 공식 권장)
+        result = poseLandmarker.detectForVideo(video, Date.now());
+      } catch (e) {
+        return;
+      }
 
-      const result = poseLandmarker.detectForVideo(video, now);
-      const lms = result.landmarks?.[0];
+      const lms = result?.landmarks?.[0];
 
       // Mirror canvas to match video CSS transform
       ctx.save();
