@@ -370,6 +370,7 @@
   let practiceActive  = false;
   let scoreHistory    = [];
   let lastInferenceMs = 0;
+  let lastDetectTs = 0;
 
   // Test state
   let isTestMode      = false;
@@ -400,6 +401,12 @@
       } catch(_) {
         poseLandmarker = await PoseLandmarker.createFromOptions(vision, { baseOptions:{ modelAssetPath:mp, delegate:'CPU' }, ...opts });
       }
+      // Warmup: MediaPipe 내부 graph의 지연 초기화를 강제로 완료시켜
+      // 실제 사용 시 "free_memory" 타임스탬프 불일치 에러를 방지
+      const warmup = document.createElement('canvas');
+      warmup.width = 4; warmup.height = 4;
+      try { poseLandmarker.detectForVideo(warmup, 1); } catch(_) {}
+      await new Promise(r => setTimeout(r, 50));
       poseData = data.poses;
       buildSelectScreen();
       setScreen('select');
@@ -615,9 +622,11 @@
     function frame() {
       rafId = requestAnimationFrame(frame);
       if (camVideo.readyState < 2 || camVideo.paused || !camVideo.videoWidth) return;
-      const now = Date.now();
+      const now = performance.now();
       if (now - lastInferenceMs < 100) return;
+      if (now <= lastDetectTs) return;
       lastInferenceMs = now;
+      lastDetectTs = now;
 
       offscreen.width  = camVideo.videoWidth;
       offscreen.height = camVideo.videoHeight;
