@@ -675,9 +675,12 @@
   function comparePoses(ref, live) {
     let total=0, w=0;
     for (const [p1,v,p2,wt] of JOINTS) {
+      // visibility 낮은 관절은 비교에서 제외 (잘못된 추정값이 점수를 오염시키는 것 방지)
+      if ((live[p1]?.visibility??1)<0.4||(live[v]?.visibility??1)<0.4||(live[p2]?.visibility??1)<0.4) continue;
       const diff = Math.abs(getAngle(ref[p1],ref[v],ref[p2]) - getAngle(live[p1],live[v],live[p2]));
-      total += Math.max(0, 1-diff/60) * wt; w += wt;
+      total += Math.max(0, 1-diff/90) * wt; w += wt;
     }
+    if (w===0) return 0;
     return Math.round((total/w)*100);
   }
   function getRefAt(time) {
@@ -689,11 +692,25 @@
     return f[lo].landmarks;
   }
   function processFrame(lms) {
-    const ref = getRefAt(refVideo.currentTime);
-    if (!ref) return;
-    const s = comparePoses(ref, lms);
-    scoreHistory.push(s);
-    updateScoreUI(s);
+    const f = currentSeq?.frames;
+    if (!f?.length) return;
+    const t = refVideo.currentTime;
+    // ±0.5초 윈도우 내에서 가장 잘 맞는 참조 프레임을 탐색
+    // (사용자가 영상보다 약간 느리거나 빨라도 올바른 점수 부여)
+    let best = -1;
+    for (const frame of f) {
+      if (Math.abs(frame.time - t) > 0.5) continue;
+      const s = comparePoses(frame.landmarks, lms);
+      if (s > best) best = s;
+    }
+    if (best < 0) {
+      // 윈도우 내 프레임 없으면 정확한 프레임으로 폴백
+      const ref = getRefAt(t);
+      if (!ref) return;
+      best = comparePoses(ref, lms);
+    }
+    scoreHistory.push(best);
+    updateScoreUI(best);
   }
 
   // ── Score UI ──────────────────────────────────────────────
