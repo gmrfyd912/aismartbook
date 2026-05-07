@@ -245,7 +245,8 @@
   </div>
 
   <div id="no-pose-msg">
-    <p>전신이 카메라에<br>보이도록 서주세요</p>
+    <p id="no-pose-text">전신이 카메라에<br>보이도록 서주세요</p>
+    <button id="cam-retry-btn" style="display:none;margin-top:1rem;padding:0.6rem 1.4rem;background:#4f8ef7;color:#fff;border:none;border-radius:0.8rem;font-size:0.9rem;cursor:pointer" onclick="retryCam()">카메라 다시 시도</button>
   </div>
 
   <div id="hold-ring">
@@ -375,6 +376,7 @@
 
     resetHold();
     document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('no-pose-msg').classList.remove('hidden');
     document.getElementById('score-number').textContent = '0';
     document.getElementById('score-bar').style.width = '0%';
     document.getElementById('feedback-text').textContent = currentPose.hint;
@@ -384,23 +386,62 @@
   };
 
   async function startCamera() {
-    if (cameraStream) return; // already running
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
-      });
-      video.srcObject = cameraStream;
-      await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
-      startLoop();
-    } catch (e) {
-      document.getElementById('feedback-text').textContent =
-        '카메라 권한이 필요합니다. 브라우저 설정을 확인해주세요.';
+    if (cameraStream) return;
+
+    showNoPoseMsg('카메라 시작 중...', false);
+
+    // Try progressively looser constraints
+    const attempts = [
+      { video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } } },
+      { video: { facingMode: { ideal: 'user' } } },
+      { video: true }
+    ];
+
+    let lastErr;
+    for (const constraints of attempts) {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (e) {
+        lastErr = e;
+        cameraStream = null;
+      }
     }
+
+    if (!cameraStream) {
+      const isPermission = lastErr?.name === 'NotAllowedError' || lastErr?.name === 'PermissionDeniedError';
+      showNoPoseMsg(
+        isPermission
+          ? '카메라 권한을 허용해주세요.\n브라우저 주소창 옆 자물쇠 아이콘을 눌러 카메라를 허용하세요.'
+          : `카메라를 열 수 없습니다.\n(${lastErr?.name || lastErr?.message})`,
+        true
+      );
+      return;
+    }
+
+    video.srcObject = cameraStream;
+    try {
+      await Promise.race([
+        new Promise(r => video.addEventListener('loadedmetadata', r, { once: true })),
+        new Promise(r => setTimeout(r, 5000))
+      ]);
+      await video.play().catch(() => {});
+    } catch (_) {}
+
+    showNoPoseMsg('전신이 카메라에<br>보이도록 서주세요', false);
+    startLoop();
   }
+
+  function showNoPoseMsg(html, showRetry) {
+    document.getElementById('no-pose-text').innerHTML = html;
+    document.getElementById('cam-retry-btn').style.display = showRetry ? 'block' : 'none';
+    document.getElementById('no-pose-msg').classList.remove('hidden');
+  }
+
+  window.retryCam = function() {
+    cameraStream = null;
+    startCamera();
+  };
 
   function stopCamera() {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
