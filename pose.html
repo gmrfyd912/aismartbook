@@ -59,7 +59,8 @@
     }
 
     /* ── Practice screen ── */
-    #practice-screen { position: relative; background: #000; }
+    /* position: relative 금지 — .screen의 position: fixed를 덮어써서 높이가 0이 됨 */
+    #practice-screen { background: #000; }
 
     /* Camera layer */
     #camera-wrap { position: absolute; inset: 0; }
