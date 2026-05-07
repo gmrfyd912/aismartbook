@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <title>자세 시퀀스 추출 (관리자)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; display: flex; flex-direction: column; }
+
+    header { background: #1a1a2e; padding: 1rem 1.2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    header a { color: #4f8ef7; text-decoration: none; font-size: 0.88rem; }
+    header h1 { font-size: 1.05rem; }
+    .badge { font-size: 0.72rem; color: #f39c12; background: rgba(243,156,18,0.15); padding: 0.2rem 0.5rem; border-radius: 1rem; }
+
+    main { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; max-width: 600px; margin: 0 auto; width: 100%; }
+
+    .card { background: #1a1a2e; border-radius: 0.9rem; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+    .card h3 { font-size: 0.88rem; color: #4f8ef7; }
+
+    label { font-size: 0.82rem; color: #aaa; display: block; margin-bottom: 0.3rem; }
+    input[type=text], input[type=number] {
+      width: 100%; padding: 0.6rem 0.8rem;
+      background: #111; border: 1px solid #333; border-radius: 0.6rem;
+      color: #fff; font-size: 0.9rem; outline: none;
+    }
+    input[type=text]:focus, input[type=number]:focus { border-color: #4f8ef7; }
+
+    #video-drop {
+      border: 2px dashed #333; border-radius: 0.8rem;
+      padding: 2rem; text-align: center; cursor: pointer;
+      transition: border-color 0.2s; font-size: 0.88rem; color: #888;
+    }
+    #video-drop:hover, #video-drop.drag-over { border-color: #4f8ef7; color: #4f8ef7; }
+    #video-drop input { display: none; }
+
+    #preview-wrap { display: none; position: relative; border-radius: 0.6rem; overflow: hidden; background: #000; }
+    #preview-video { width: 100%; max-height: 280px; object-fit: contain; display: block; }
+    #preview-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+    .row { display: flex; gap: 0.7rem; align-items: center; }
+    .btn {
+      flex: 1; padding: 0.75rem; font-size: 0.9rem; font-weight: bold;
+      border: none; border-radius: 0.7rem; cursor: pointer;
+    }
+    .btn-primary { background: #4f8ef7; color: #fff; }
+    .btn-primary:disabled { background: #333; color: #666; cursor: default; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-success:disabled { background: #333; color: #666; cursor: default; }
+
+    #progress-wrap { display: none; }
+    #progress-bar-bg { background: #222; border-radius: 4px; height: 8px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #4f8ef7; width: 0%; transition: width 0.1s; border-radius: 4px; }
+    #progress-text { font-size: 0.82rem; color: #aaa; margin-top: 0.4rem; }
+
+    #result-wrap { display: none; flex-direction: column; gap: 0.6rem; }
+    #result-wrap h3 { font-size: 0.85rem; color: #27ae60; }
+    #json-preview {
+      background: #111; border: 1px solid #333; border-radius: 0.6rem;
+      padding: 0.7rem; font-size: 0.7rem; font-family: monospace;
+      max-height: 160px; overflow-y: auto; color: #adf; white-space: pre;
+    }
+
+    .guide { font-size: 0.8rem; color: #888; line-height: 1.7; }
+    .guide strong { color: #ccc; }
+    .guide code { background: #111; padding: 0.1rem 0.3rem; border-radius: 0.3rem; font-size: 0.78rem; color: #adf; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="./index.html">← AR 체험</a>
+  <h1>자세 시퀀스 추출</h1>
+  <span class="badge">관리자</span>
+</header>
+
+<main>
+
+  <div class="card">
+    <h3>1단계 — 동작 정보 입력</h3>
+    <div>
+      <label>동작 ID (pose-data.json의 id 값)</label>
+      <input type="text" id="pose-id" placeholder="예: stop_right">
+    </div>
+    <div>
+      <label>추출 FPS (권장: 10)</label>
+      <input type="number" id="fps-input" value="10" min="5" max="30">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>2단계 — 신호수 동작 영상 선택</h3>
+    <div id="video-drop" onclick="document.getElementById('file-input').click()">
+      <input type="file" id="file-input" accept="video/*">
+      <div id="drop-label">📂 클릭하거나 영상 파일을 여기에 드래그<br><span style="font-size:0.75rem">MP4, MOV, AVI 등</span></div>
+    </div>
+    <div id="preview-wrap">
+      <video id="preview-video" muted playsinline></video>
+      <canvas id="preview-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="card" id="step3-card">
+    <h3>3단계 — 자세 추출</h3>
+    <div id="progress-wrap">
+      <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+      <div id="progress-text">준비 중...</div>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="extract-btn" disabled onclick="startExtract()">자세 추출 시작</button>
+      <button class="btn btn-success" id="download-btn" disabled onclick="downloadJson()">JSON 다운로드</button>
+    </div>
+    <div id="result-wrap">
+      <h3 id="result-title">추출 완료</h3>
+      <div id="json-preview"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>사용 방법</h3>
+    <div class="guide">
+      <strong>추출 후 할 일:</strong><br>
+      1. 다운로드된 JSON을 <code>pose-sequences/</code> 폴더에 저장<br>
+      2. 영상 파일을 <code>assets/videos/</code> 폴더에 저장<br>
+      3. <code>pose-data.json</code>에서 해당 동작의<br>
+      &nbsp;&nbsp;<code>"video": "./assets/videos/파일명.mp4"</code><br>
+      &nbsp;&nbsp;<code>"sequence": "./pose-sequences/파일명.json"</code><br>
+      &nbsp;&nbsp;을 업데이트<br>
+      4. GitHub에 push
+    </div>
+  </div>
+
+</main>
+
+<script type="module">
+  import { PoseLandmarker, FilesetResolver, DrawingUtils }
+    from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+
+  let poseLandmarker = null;
+  let drawUtils = null;
+  let videoFile = null;
+  let extractedData = null;
+
+  const previewVideo  = document.getElementById('preview-video');
+  const previewCanvas = document.getElementById('preview-canvas');
+  const pCtx = previewCanvas.getContext('2d');
+
+  // ── Init MediaPipe ────────────────────────────────────────
+  async function init() {
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+      );
+      // IMAGE 모드: 영상 파일 프레임별 처리
+      try {
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'IMAGE',
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.3
+        });
+      } catch (_) {
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+            delegate: 'CPU'
+          },
+          runningMode: 'IMAGE',
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.3
+        });
+      }
+      drawUtils = new DrawingUtils(pCtx);
+    } catch (e) {
+      alert('MediaPipe 초기화 실패: ' + e.message);
+    }
+  }
+
+  // ── File input ────────────────────────────────────────────
+  const drop = document.getElementById('video-drop');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('video/')) loadFile(file);
+  });
+  document.getElementById('file-input').addEventListener('change', e => {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  function loadFile(file) {
+    videoFile = file;
+    document.getElementById('drop-label').textContent = '📹 ' + file.name;
+    previewVideo.src = URL.createObjectURL(file);
+    previewVideo.load();
+    previewVideo.addEventListener('loadedmetadata', () => {
+      document.getElementById('preview-wrap').style.display = 'block';
+      document.getElementById('extract-btn').disabled = false;
+    }, { once: true });
+  }
+
+  // ── Extract ───────────────────────────────────────────────
+  window.startExtract = async function() {
+    if (!poseLandmarker || !videoFile) return;
+
+    const id  = document.getElementById('pose-id').value.trim() || 'pose_' + Date.now();
+    const fps = parseInt(document.getElementById('fps-input').value) || 10;
+    const step = 1 / fps;
+
+    document.getElementById('extract-btn').disabled = true;
+    document.getElementById('download-btn').disabled = true;
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('result-wrap').style.display = 'none';
+    extractedData = null;
+
+    const duration = previewVideo.duration;
+    const frames = [];
+    let t = 0;
+
+    while (t <= duration) {
+      // Seek video to time t
+      previewVideo.currentTime = t;
+      await new Promise(r => previewVideo.addEventListener('seeked', r, { once: true }));
+
+      // Draw frame to canvas for MediaPipe
+      previewCanvas.width  = previewVideo.videoWidth;
+      previewCanvas.height = previewVideo.videoHeight;
+      pCtx.drawImage(previewVideo, 0, 0);
+
+      // Detect pose
+      const result = poseLandmarker.detect(previewCanvas);
+      if (result.landmarks?.[0]) {
+        const lm = result.landmarks[0].map(p => ({
+          x: +p.x.toFixed(4), y: +p.y.toFixed(4), z: +p.z.toFixed(4),
+          visibility: +(p.visibility ?? 1).toFixed(3)
+        }));
+        frames.push({ time: +t.toFixed(3), landmarks: lm });
+
+        // Draw skeleton preview
+        pCtx.drawImage(previewVideo, 0, 0);
+        drawUtils.drawConnectors(result.landmarks[0], PoseLandmarker.POSE_CONNECTIONS,
+          { color: '#00ffcc', lineWidth: 2 });
+        drawUtils.drawLandmarks(result.landmarks[0], { color: '#00ffcc', radius: 3 });
+      }
+
+      const pct = Math.min(100, Math.round((t / duration) * 100));
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent =
+        `처리 중... ${pct}% (${frames.length}개 프레임 감지됨)`;
+
+      t = +(t + step).toFixed(3);
+      // Yield to browser
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    extractedData = { id, fps, duration: +duration.toFixed(3), frames };
+
+    document.getElementById('progress-bar').style.width = '100%';
+    document.getElementById('progress-text').textContent =
+      `완료! ${frames.length}개 프레임 추출됨 (총 ${duration.toFixed(1)}초)`;
+
+    const preview = JSON.stringify(extractedData, null, 2).slice(0, 1000) + '\n...';
+    document.getElementById('json-preview').textContent = preview;
+    document.getElementById('result-title').textContent =
+      `추출 완료 — ${frames.length}개 프레임 / ${duration.toFixed(1)}초`;
+    document.getElementById('result-wrap').style.display = 'flex';
+    document.getElementById('download-btn').disabled = false;
+    document.getElementById('extract-btn').disabled = false;
+  };
+
+  window.downloadJson = function() {
+    if (!extractedData) return;
+    const id  = extractedData.id;
+    const blob = new Blob([JSON.stringify(extractedData)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = id + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  init();
+</script>
+</body>
+</html>
