@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>실시간 모니터링</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; }
+
+    .header { padding: 1rem 1rem 0.5rem; display: flex; align-items: center; gap: 0.7rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .header a { color: #4f8ef7; text-decoration: none; font-size: 0.85rem; }
+    .header h1 { font-size: 1.1rem; flex: 1; }
+    .live-dot { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: #27ae60; }
+    .live-dot::before { content: ''; width: 7px; height: 7px; background: #27ae60; border-radius: 50%; animation: blink 1.2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .section-title { font-size: 0.78rem; color: #555; font-weight: bold; letter-spacing: 0.05em; padding: 0 1rem; margin: 1rem 0 0.5rem; }
+
+    /* 집중도 차트 */
+    .chart-card { margin: 0 1rem; background: #1a1a2e; border-radius: 1rem; padding: 1rem; margin-bottom: 1rem; }
+    .chart-card h3 { font-size: 0.88rem; margin-bottom: 0.8rem; color: #aaa; }
+    .bar-chart { display: flex; flex-direction: column; gap: 0.5rem; }
+    .chart-row { display: flex; align-items: center; gap: 0.6rem; }
+    .chart-name { font-size: 0.75rem; width: 70px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ccc; }
+    .chart-bar-wrap { flex: 1; height: 14px; background: rgba(255,255,255,0.08); border-radius: 7px; overflow: hidden; }
+    .chart-bar { height: 100%; border-radius: 7px; transition: width 0.5s; }
+    .chart-val { font-size: 0.72rem; color: #888; width: 30px; text-align: right; flex-shrink: 0; }
+
+    /* 졸음/집중낮음 알림 */
+    .alert-section { margin: 0 1rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .alert-item {
+      background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 0.8rem; padding: 0.7rem 0.9rem;
+      display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem;
+    }
+    .alert-item .a-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .alert-item .a-text { flex: 1; }
+    .alert-item .a-time { font-size: 0.7rem; color: #888; flex-shrink: 0; }
+    .no-alerts { color: #555; font-size: 0.82rem; text-align: center; padding: 1rem; }
+
+    /* 퀴즈 결과 집계 */
+    .quiz-results { margin: 0 1rem 1rem; }
+    .quiz-result-card { background: #1a1a2e; border-radius: 1rem; padding: 1rem; margin-bottom: 0.7rem; }
+    .qr-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+    .qr-title { font-size: 0.88rem; font-weight: bold; }
+    .qr-meta  { font-size: 0.72rem; color: #888; }
+    .qr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
+    .qr-stat  { text-align: center; }
+    .qr-stat .sv { font-size: 1.4rem; font-weight: bold; }
+    .qr-stat .sl { font-size: 0.68rem; color: #888; }
+    .qr-rate-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+    .qr-rate-fill { height: 100%; background: #27ae60; border-radius: 4px; transition: width 0.4s; }
+
+    /* 동작 평가 결과 */
+    .motion-results { margin: 0 1rem 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .mr-item { background: #1a1a2e; border-radius: 0.9rem; padding: 0.8rem 1rem; display: flex; align-items: center; gap: 0.7rem; }
+    .mr-item .mr-stu  { font-size: 0.85rem; font-weight: bold; flex: 1; }
+    .mr-item .mr-score { font-size: 1.2rem; font-weight: bold; }
+    .mr-item .mr-detail { font-size: 0.72rem; color: #888; }
+
+    .firebase-note { font-size: 0.72rem; color: #555; text-align: center; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a href="./dashboard.html">← 대시보드</a>
+  <h1>실시간 모니터링</h1>
+  <div class="live-dot" id="live-dot">연결 중</div>
+</div>
+
+<div class="section-title">집중도 현황</div>
+<div class="chart-card">
+  <h3>교육생별 집중도</h3>
+  <div class="bar-chart" id="conc-chart">
+    <div class="no-alerts">데이터 없음</div>
+  </div>
+</div>
+
+<div class="section-title">⚠️ 집중도 저하 알림</div>
+<div class="alert-section" id="alert-section">
+  <div class="no-alerts">현재 집중도 저하 알림이 없습니다 ✅</div>
+</div>
+
+<div class="section-title">퀴즈 결과 집계</div>
+<div class="quiz-results" id="quiz-results">
+  <div style="color:#555;font-size:0.82rem;padding:1rem;text-align:center">퀴즈 결과 없음</div>
+</div>
+
+<div class="section-title">동작 평가 결과</div>
+<div class="motion-results" id="motion-results">
+  <div style="color:#555;font-size:0.82rem;padding:1rem;text-align:center">동작 평가 결과 없음</div>
+</div>
+
+<div class="firebase-note" id="firebase-note">
+  Firebase 연결 후 실시간 데이터가 표시됩니다
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+
+<script>
+  const alerts = [];
+
+  (async function init() {
+    const ok = await FirebaseManager.init();
+    const dot = document.getElementById('live-dot');
+
+    if (!ok) {
+      dot.textContent = '오프라인';
+      dot.style.color = '#e55';
+      dot.style.setProperty('--color', '#e55');
+      document.getElementById('firebase-note').textContent = '⚠️ Firebase 미연결 - js/config.js 설정 필요';
+      document.getElementById('firebase-note').style.color = '#e55';
+      return;
+    }
+
+    dot.textContent = '실시간';
+
+    // 교육생 집중도 감시
+    FirebaseManager.watchStudents(students => {
+      renderConcChart(students);
+      checkLowConcentration(students);
+    });
+
+    // 퀴즈 결과 감시
+    const quizRef = FirebaseManager.ref('quizResults');
+    if (quizRef) {
+      quizRef.on('value', snap => {
+        renderQuizResults(snap.val() || {});
+      });
+    }
+
+    // 동작 평가 결과 감시
+    const motionRef = FirebaseManager.ref('motionResults');
+    if (motionRef) {
+      motionRef.on('value', snap => {
+        renderMotionResults(snap.val() || {});
+      });
+    }
+  })();
+
+  function renderConcChart(students) {
+    const chart = document.getElementById('conc-chart');
+    const cutoff = Date.now() - 3600000;
+    const active = Object.entries(students)
+      .filter(([, s]) => s.lastSync > cutoff)
+      .sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
+
+    if (!active.length) {
+      chart.innerHTML = '<div class="no-alerts">접속 중인 교육생이 없습니다</div>';
+      return;
+    }
+
+    chart.innerHTML = active.map(([, s]) => {
+      const conc = s.concentration ?? 100;
+      const color = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
+      return `<div class="chart-row">
+        <div class="chart-name">${escHtml(s.name || '?')}</div>
+        <div class="chart-bar-wrap">
+          <div class="chart-bar" style="width:${conc}%;background:${color}"></div>
+        </div>
+        <div class="chart-val">${conc}%</div>
+      </div>`;
+    }).join('');
+  }
+
+  function checkLowConcentration(students) {
+    const alertSection = document.getElementById('alert-section');
+    const cutoff = Date.now() - 3600000;
+    const lowConc = Object.entries(students)
+      .filter(([, s]) => s.lastSync > cutoff && (s.concentration ?? 100) < 40);
+
+    if (!lowConc.length) {
+      alertSection.innerHTML = '<div class="no-alerts">현재 집중도 저하 알림이 없습니다 ✅</div>';
+      return;
+    }
+
+    const now = new Date().toLocaleTimeString();
+    alertSection.innerHTML = lowConc.map(([, s]) => {
+      const conc = s.concentration ?? 0;
+      const msg = conc < 20 ? '😴 졸음 감지' : '😕 집중도 매우 낮음';
+      return `<div class="alert-item">
+        <div class="a-icon">${conc < 20 ? '😴' : '⚠️'}</div>
+        <div class="a-text"><strong>${escHtml(s.name || '?')}</strong> ${msg} (${conc}%)</div>
+        <div class="a-time">${now}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderQuizResults(data) {
+    const el = document.getElementById('quiz-results');
+    if (!Object.keys(data).length) {
+      el.innerHTML = '<div style="color:#555;font-size:0.82rem;padding:1rem;text-align:center">퀴즈 결과 없음</div>';
+      return;
+    }
+
+    el.innerHTML = Object.entries(data)
+      .sort((a, b) => b[0].localeCompare(a[0])) // 최신순
+      .slice(0, 5) // 최근 5개만
+      .map(([quizId, results]) => {
+        const students = Object.values(results);
+        const total = students.length;
+        const avgScore = Math.round(students.reduce((a, s) => a + (s.score || 0), 0) / total);
+        const time = new Date(parseInt(quizId.split('_')[1] || Date.now())).toLocaleTimeString();
+
+        return `<div class="quiz-result-card">
+          <div class="qr-header">
+            <div class="qr-title">퀴즈 결과</div>
+            <div class="qr-meta">${time} · ${total}명 참여</div>
+          </div>
+          <div class="qr-stats">
+            <div class="qr-stat">
+              <div class="sv" style="color:#4f8ef7">${total}</div>
+              <div class="sl">참여</div>
+            </div>
+            <div class="qr-stat">
+              <div class="sv" style="color:#27ae60">${avgScore}</div>
+              <div class="sl">평균점수</div>
+            </div>
+            <div class="qr-stat">
+              <div class="sv" style="color:#f39c12">${students.filter(s=>(s.score||0)<60).length}</div>
+              <div class="sl">60점 미만</div>
+            </div>
+          </div>
+          <div class="qr-rate-bar">
+            <div class="qr-rate-fill" style="width:${avgScore}%"></div>
+          </div>
+        </div>`;
+      }).join('');
+  }
+
+  function renderMotionResults(data) {
+    const el = document.getElementById('motion-results');
+    const allResults = [];
+
+    Object.entries(data).forEach(([studentId, sessions]) => {
+      Object.entries(sessions).forEach(([ts, result]) => {
+        allResults.push({ studentId, ts: parseInt(ts), ...result });
+      });
+    });
+
+    if (!allResults.length) {
+      el.innerHTML = '<div style="color:#555;font-size:0.82rem;padding:1rem;text-align:center">동작 평가 결과 없음</div>';
+      return;
+    }
+
+    allResults.sort((a, b) => b.ts - a.ts);
+    el.innerHTML = allResults.slice(0, 10).map(r => {
+      const score = r.scoreAvg || 0;
+      const color = score >= 70 ? '#27ae60' : score >= 50 ? '#f39c12' : '#e55';
+      const time = new Date(r.ts).toLocaleTimeString();
+      return `<div class="mr-item">
+        <div>
+          <div class="mr-stu">${escHtml(r.name || r.studentId || '?')}</div>
+          <div class="mr-detail">${time} · ${r.passed||0}/${r.total||0} 통과</div>
+        </div>
+        <div class="mr-score" style="color:${color}">${score}점</div>
+      </div>`;
+    }).join('');
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+{
+  "motions": [
+    {
+      "id": "bokwon",
+      "name": "보권 사용",
+      "description": "팔을 머리 위로 올려 좌우로 흔드는 동작",
+      "keyAngles": {
+        "rightElbow": { "min": 150, "max": 180, "weight": 2.0 },
+        "leftElbow":  { "min": 150, "max": 180, "weight": 2.0 },
+        "rightShoulder": { "min": 80, "max": 130, "weight": 1.5 },
+        "leftShoulder":  { "min": 80, "max": 130, "weight": 1.5 }
+      },
+      "feedback": {
+        "rightElbow": "오른팔을 더 펴주세요",
+        "leftElbow": "왼팔을 더 펴주세요",
+        "rightShoulder": "오른쪽 어깨를 더 올려주세요",
+        "leftShoulder": "왼쪽 어깨를 더 올려주세요"
+      },
+      "sequenceFile": "pose-sequences/보권사용.json",
+      "videoFile": "assets/videos/보권사용.mp4"
+    },
+    {
+      "id": "jukwon",
+      "name": "주권 사용",
+      "description": "팔을 앞으로 뻗어 진행 방향을 지시하는 동작",
+      "keyAngles": {
+        "rightElbow": { "min": 150, "max": 180, "weight": 2.5 },
+        "rightShoulder": { "min": 50, "max": 100, "weight": 2.0 }
+      },
+      "feedback": {
+        "rightElbow": "팔을 더 펴서 앞으로 뻗어주세요",
+        "rightShoulder": "팔을 수평이 되도록 들어주세요"
+      },
+      "sequenceFile": "pose-sequences/주권사용.json",
+      "videoFile": "assets/videos/주권사용.mp4"
+    },
+    {
+      "id": "move_up",
+      "name": "위로 올리기",
+      "description": "팔을 아래에서 위로 올리는 상승 신호",
+      "keyAngles": {
+        "rightElbow": { "min": 140, "max": 180, "weight": 2.0 },
+        "rightShoulder": { "min": 100, "max": 170, "weight": 2.5 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치를 더 펴주세요",
+        "rightShoulder": "팔을 더 높이 올려주세요"
+      },
+      "sequenceFile": "pose-sequences/위로올리기.json",
+      "videoFile": "assets/videos/위로올리기.mp4"
+    },
+    {
+      "id": "move_down",
+      "name": "아래로 내리기",
+      "description": "팔을 위에서 아래로 내리는 하강 신호",
+      "keyAngles": {
+        "rightElbow": { "min": 140, "max": 180, "weight": 2.0 },
+        "rightShoulder": { "min": 10, "max": 60, "weight": 2.5 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치를 더 펴주세요",
+        "rightShoulder": "팔을 아래로 더 내려주세요"
+      },
+      "sequenceFile": "pose-sequences/아래로내리기.json",
+      "videoFile": "assets/videos/아래로내리기.mp4"
+    },
+    {
+      "id": "horizontal",
+      "name": "수평 이동",
+      "description": "팔을 수평으로 좌우 이동하는 방향 전환 신호",
+      "keyAngles": {
+        "rightElbow": { "min": 150, "max": 180, "weight": 2.0 },
+        "rightShoulder": { "min": 60, "max": 100, "weight": 2.5 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치를 더 펴주세요",
+        "rightShoulder": "팔을 수평으로 유지해주세요"
+      },
+      "sequenceFile": "pose-sequences/수평이동.json",
+      "videoFile": "assets/videos/수평이동.mp4"
+    },
+    {
+      "id": "drive_dir",
+      "name": "운전 방향 지시",
+      "description": "손으로 운전자의 진행 방향을 직접 지시",
+      "keyAngles": {
+        "rightElbow": { "min": 100, "max": 160, "weight": 2.0 },
+        "rightShoulder": { "min": 40, "max": 90, "weight": 2.0 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치 각도를 조정해주세요",
+        "rightShoulder": "팔의 높이를 조정해주세요"
+      },
+      "sequenceFile": "pose-sequences/운전방향지시.json",
+      "videoFile": "assets/videos/운전방향지시.mp4"
+    },
+    {
+      "id": "slow_up",
+      "name": "천천히 조금씩 올리기",
+      "description": "팔을 천천히 조금씩 위로 올리는 서행 상승 신호",
+      "keyAngles": {
+        "rightElbow": { "min": 120, "max": 180, "weight": 1.5 },
+        "rightShoulder": { "min": 60, "max": 140, "weight": 2.0 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치를 더 펴주세요",
+        "rightShoulder": "팔을 천천히 위로 올려주세요"
+      },
+      "sequenceFile": "pose-sequences/천천히조금씩위로올리기.json",
+      "videoFile": "assets/videos/천천히조금씩위로올리기.mp4"
+    },
+    {
+      "id": "slow_down",
+      "name": "천천히 조금씩 내리기",
+      "description": "팔을 천천히 조금씩 아래로 내리는 서행 감속 신호",
+      "keyAngles": {
+        "rightElbow": { "min": 120, "max": 180, "weight": 1.5 },
+        "rightShoulder": { "min": 10, "max": 80, "weight": 2.0 }
+      },
+      "feedback": {
+        "rightElbow": "팔꿈치를 더 펴주세요",
+        "rightShoulder": "팔을 천천히 아래로 내려주세요"
+      },
+      "sequenceFile": "pose-sequences/천천히조금씩아래로내리기.json",
+      "videoFile": "assets/videos/천천히조금씩아래로내리기.mp4"
+    }
+  ]
+}

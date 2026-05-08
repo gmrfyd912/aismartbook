@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>강사 대시보드</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; }
+
+    .header {
+      padding: 1.2rem 1rem 0.8rem;
+      background: linear-gradient(to bottom, #111, transparent);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header h1 { font-size: 1.15rem; }
+    .header .role-badge { background: rgba(231,76,60,0.2); color: #e74c3c; padding: 0.3rem 0.75rem; border-radius: 2rem; font-size: 0.78rem; }
+
+    .section-title { font-size: 0.78rem; color: #555; font-weight: bold; letter-spacing: 0.05em; padding: 0 1rem; margin-bottom: 0.5rem; margin-top: 1rem; }
+
+    /* 집체교육 토글 */
+    .class-mode-card {
+      margin: 0 1rem 1rem;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 1.5px solid rgba(231,76,60,0.3);
+      border-radius: 1.2rem; padding: 1.2rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .class-mode-card .cm-icon { font-size: 2rem; flex-shrink: 0; }
+    .class-mode-card .cm-info { flex: 1; }
+    .class-mode-card .cm-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 0.2rem; }
+    .class-mode-card .cm-desc  { font-size: 0.75rem; color: #888; }
+
+    .toggle-btn {
+      padding: 0.55rem 1.1rem; border: none; border-radius: 2rem;
+      font-size: 0.85rem; font-weight: bold; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; transition: background 0.2s;
+    }
+    .toggle-btn.inactive { background: rgba(39,174,96,0.2); color: #27ae60; border: 1px solid rgba(39,174,96,0.4); }
+    .toggle-btn.active   { background: #e74c3c; color: #fff; }
+
+    /* 통계 카드들 */
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem; padding: 0 1rem; margin-bottom: 1rem; }
+    .stat-card { background: #1a1a2e; border-radius: 1rem; padding: 1rem; }
+    .stat-card .s-val { font-size: 2rem; font-weight: bold; margin-bottom: 0.2rem; }
+    .stat-card .s-lbl { font-size: 0.72rem; color: #888; }
+
+    /* 퀴즈 발사 */
+    .quiz-launch-card {
+      margin: 0 1rem 1rem;
+      background: #1a1a2e; border-radius: 1.2rem; padding: 1.2rem;
+    }
+    .quiz-launch-card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .quiz-launch-card p  { font-size: 0.78rem; color: #888; margin-bottom: 0.8rem; }
+    .launch-row { display: flex; gap: 0.6rem; }
+    .launch-select {
+      flex: 1; padding: 0.6rem; background: #111; border: 1px solid #333;
+      border-radius: 0.6rem; color: #fff; font-size: 0.85rem; outline: none;
+    }
+    .launch-btn {
+      padding: 0.6rem 1.1rem; background: #e74c3c; color: #fff; border: none;
+      border-radius: 0.6rem; font-size: 0.85rem; font-weight: bold; cursor: pointer;
+      white-space: nowrap;
+    }
+    .launch-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* 교육생 목록 */
+    .students-list { padding: 0 1rem; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+    .student-row {
+      background: #1a1a2e; border-radius: 0.9rem; padding: 0.8rem 1rem;
+      display: flex; align-items: center; gap: 0.8rem;
+    }
+    .stu-avatar { font-size: 1.4rem; flex-shrink: 0; }
+    .stu-info { flex: 1; }
+    .stu-name  { font-size: 0.88rem; font-weight: bold; }
+    .stu-unit  { font-size: 0.72rem; color: #888; margin-top: 0.1rem; }
+    .conc-badge {
+      font-size: 0.72rem; font-weight: bold; padding: 0.2rem 0.55rem;
+      border-radius: 1rem; white-space: nowrap;
+    }
+    .conc-high   { background: rgba(39,174,96,0.2); color: #27ae60; }
+    .conc-mid    { background: rgba(243,156,18,0.2); color: #f39c12; }
+    .conc-low    { background: rgba(231,76,60,0.2); color: #e55; }
+    .conc-bar-wrap { width: 60px; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+    .conc-bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+    /* 실시간 모니터링 링크 */
+    .monitor-link {
+      margin: 0 1rem 2rem;
+      display: flex; align-items: center; gap: 0.8rem;
+      background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 1rem; padding: 1rem;
+      text-decoration: none; color: #fff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .monitor-link .m-icon { font-size: 1.8rem; }
+    .monitor-link .m-text h3 { font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .monitor-link .m-text p  { font-size: 0.75rem; color: #888; }
+    .monitor-link .m-arrow   { margin-left: auto; color: #4f8ef7; }
+
+    .no-students { text-align: center; padding: 2rem; color: #555; font-size: 0.85rem; }
+
+    .firebase-note { font-size: 0.72rem; color: #555; text-align: center; padding: 0.5rem 1rem 1rem; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎖️ 강사 대시보드</h1>
+  <div class="role-badge">강사</div>
+</div>
+
+<div class="section-title">집체교육 모드</div>
+<div class="class-mode-card">
+  <div class="cm-icon" id="cm-icon">📷</div>
+  <div class="cm-info">
+    <div class="cm-title" id="cm-title">집체교육 대기 중</div>
+    <div class="cm-desc" id="cm-desc">활성화하면 교육생 AI음성이 꺼집니다</div>
+  </div>
+  <button class="toggle-btn inactive" id="class-mode-btn" onclick="toggleClassMode()">
+    수업 시작
+  </button>
+</div>
+
+<div class="section-title">현황</div>
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="s-val" id="stat-online" style="color:#27ae60">0</div>
+    <div class="s-lbl">접속 중인 교육생</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" id="stat-avg-conc" style="color:#4f8ef7">--</div>
+    <div class="s-lbl">평균 집중도</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" id="stat-low-conc" style="color:#f39c12">0</div>
+    <div class="s-lbl">집중도 낮음</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" id="stat-quiz-done" style="color:#9b59b6">0</div>
+    <div class="s-lbl">퀴즈 완료</div>
+  </div>
+</div>
+
+<div class="section-title">퀴즈 발사</div>
+<div class="quiz-launch-card">
+  <h3>📤 전체 교육생에게 퀴즈 발송</h3>
+  <p>버튼을 누르면 모든 교육생 화면에 퀴즈가 즉시 표시됩니다</p>
+  <div class="launch-row">
+    <select class="launch-select" id="quiz-unit-select">
+      <option value="all">전체 단원 랜덤</option>
+      <option value="1">1단원 - 신호수의 역할</option>
+      <option value="2">2단원 - 위치와 복장</option>
+      <option value="3">3단원 - 수신호 원칙</option>
+      <option value="4">4단원 - 보권과 주권</option>
+      <option value="5">5단원 - 방향 지시</option>
+      <option value="6">6단원 - 안전 수칙</option>
+    </select>
+    <button class="launch-btn" id="launch-btn" onclick="launchQuiz()">발사 🚀</button>
+  </div>
+  <div style="margin-top:0.5rem;font-size:0.72rem;color:#888" id="quiz-status"></div>
+</div>
+
+<div class="section-title">교육생 현황</div>
+<div id="students-list" class="students-list">
+  <div class="no-students">Firebase 연결 후 교육생 현황이 표시됩니다</div>
+</div>
+
+<a href="./monitor.html" class="monitor-link">
+  <div class="m-icon">📊</div>
+  <div class="m-text">
+    <h3>실시간 모니터링</h3>
+    <p>집중도 그래프 · 퀴즈 결과 집계</p>
+  </div>
+  <div class="m-arrow">›</div>
+</a>
+
+<div class="firebase-note" id="firebase-note">
+  Firebase 설정 후 실시간 기능을 사용할 수 있습니다 (js/config.js 설정 필요)
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+
+<script>
+  let isClassMode = false;
+  let studentsData = {};
+  let quizDoneCount = 0;
+
+  (async function init() {
+    const ok = await FirebaseManager.init();
+    if (!ok) {
+      document.getElementById('firebase-note').textContent = '⚠️ Firebase 미연결 - js/config.js에 Firebase 설정을 입력해주세요';
+      document.getElementById('firebase-note').style.color = '#e55';
+      return;
+    }
+    document.getElementById('firebase-note').textContent = '✅ Firebase 연결됨';
+    document.getElementById('firebase-note').style.color = '#27ae60';
+
+    // 강사 모드 상태 감지
+    FirebaseManager.watchInstructorMode(active => {
+      isClassMode = active;
+      updateClassModeUI(active);
+    });
+
+    // 교육생 데이터 실시간 감지
+    FirebaseManager.watchStudents(students => {
+      studentsData = students;
+      renderStudents(students);
+      updateStats(students);
+    });
+
+    // 퀴즈 결과 감지 (가장 최근 퀴즈)
+    const quizRef = FirebaseManager.ref('quizResults');
+    if (quizRef) {
+      quizRef.on('value', snap => {
+        const data = snap.val() || {};
+        quizDoneCount = 0;
+        Object.values(data).forEach(quizData => {
+          quizDoneCount += Object.keys(quizData).length;
+        });
+        document.getElementById('stat-quiz-done').textContent = quizDoneCount;
+      });
+    }
+  })();
+
+  function updateClassModeUI(active) {
+    const btn  = document.getElementById('class-mode-btn');
+    const icon = document.getElementById('cm-icon');
+    const title = document.getElementById('cm-title');
+    const desc  = document.getElementById('cm-desc');
+
+    if (active) {
+      btn.textContent = '수업 종료';
+      btn.className = 'toggle-btn active';
+      icon.textContent = '📸';
+      title.textContent = '집체교육 진행 중';
+      desc.textContent = '교육생 AI 음성이 꺼진 상태입니다';
+    } else {
+      btn.textContent = '수업 시작';
+      btn.className = 'toggle-btn inactive';
+      icon.textContent = '📷';
+      title.textContent = '집체교육 대기 중';
+      desc.textContent = '활성화하면 교육생 AI 음성이 꺼집니다';
+    }
+  }
+
+  async function toggleClassMode() {
+    await FirebaseManager.setInstructorMode(!isClassMode);
+  }
+
+  async function launchQuiz() {
+    const unit = document.getElementById('quiz-unit-select').value;
+    const btn  = document.getElementById('launch-btn');
+    const status = document.getElementById('quiz-status');
+
+    btn.disabled = true;
+    status.textContent = '퀴즈 발송 중...';
+
+    await FirebaseManager.launchQuiz({
+      unit: unit === 'all' ? null : parseInt(unit),
+      count: 5,
+      launchedAt: new Date().toISOString()
+    });
+
+    status.textContent = `✅ 퀴즈 발송 완료 (${new Date().toLocaleTimeString()})`;
+    btn.disabled = false;
+
+    // 30초 후 퀴즈 종료
+    setTimeout(() => {
+      FirebaseManager.clearQuiz();
+      status.textContent = '퀴즈가 종료되었습니다';
+    }, 30000);
+  }
+
+  function renderStudents(students) {
+    const list = document.getElementById('students-list');
+    if (!students || Object.keys(students).length === 0) {
+      list.innerHTML = '<div class="no-students">접속 중인 교육생이 없습니다</div>';
+      return;
+    }
+
+    // 최근 1시간 이내 접속자만 표시
+    const cutoff = Date.now() - 3600000;
+    const active = Object.entries(students)
+      .filter(([, s]) => s.lastSync > cutoff)
+      .sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
+
+    if (!active.length) {
+      list.innerHTML = '<div class="no-students">최근 1시간 내 접속자가 없습니다</div>';
+      return;
+    }
+
+    list.innerHTML = active.map(([id, s]) => {
+      const conc = s.concentration ?? 100;
+      const concClass = conc >= 70 ? 'conc-high' : conc >= 40 ? 'conc-mid' : 'conc-low';
+      const concLabel = conc >= 70 ? '집중 중' : conc >= 40 ? '보통' : '집중 낮음';
+      const concColor = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
+      const unit = s.progress?.currentUnit || 1;
+
+      return `<div class="student-row">
+        <div class="stu-avatar">👤</div>
+        <div class="stu-info">
+          <div class="stu-name">${escHtml(s.name || id)}</div>
+          <div class="stu-unit">${unit}단원 학습 중</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem">
+          <div class="conc-badge ${concClass}">${concLabel}</div>
+          <div class="conc-bar-wrap">
+            <div class="conc-bar" style="width:${conc}%;background:${concColor}"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function updateStats(students) {
+    const cutoff = Date.now() - 3600000;
+    const active = Object.values(students).filter(s => s.lastSync > cutoff);
+    document.getElementById('stat-online').textContent = active.length;
+
+    if (active.length > 0) {
+      const avgConc = Math.round(active.reduce((a, s) => a + (s.concentration ?? 100), 0) / active.length);
+      const lowConc = active.filter(s => (s.concentration ?? 100) < 40).length;
+      document.getElementById('stat-avg-conc').textContent = avgConc + '%';
+      document.getElementById('stat-low-conc').textContent = lowConc;
+    } else {
+      document.getElementById('stat-avg-conc').textContent = '--';
+      document.getElementById('stat-low-conc').textContent = '0';
+    }
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

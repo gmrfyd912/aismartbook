@@ -1,0 +1,229 @@
+{
+  "quizzes": [
+    {
+      "id": "q001",
+      "unit": 1,
+      "question": "신호수는 건설현장에서 장비 운전자와 현장 작업자 사이의 신호를 전달하는 역할을 한다.",
+      "answer": true,
+      "explanation": "신호수(Signal Person)의 핵심 역할은 장비 운전자와 작업자 간의 의사소통을 중개하여 사고를 예방하는 것입니다.",
+      "relatedPage": 1,
+      "relatedUnit": 1
+    },
+    {
+      "id": "q002",
+      "unit": 1,
+      "question": "신호수는 별도의 교육이나 자격 없이 누구나 담당할 수 있다.",
+      "answer": false,
+      "explanation": "신호수는 건설기계 안전운전 신호수 교육을 이수하고 신호 체계를 완전히 숙지한 자격자여야 합니다.",
+      "relatedPage": 1,
+      "relatedUnit": 1
+    },
+    {
+      "id": "q003",
+      "unit": 1,
+      "question": "두 대 이상의 장비가 동시에 작업하는 경우 신호수 배치가 의무화된다.",
+      "answer": true,
+      "explanation": "산업안전보건기준에 관한 규칙 제39조에 따라 두 대 이상의 장비가 동시에 작업하는 경우 신호수 배치가 의무입니다.",
+      "relatedPage": 2,
+      "relatedUnit": 1
+    },
+    {
+      "id": "q004",
+      "unit": 1,
+      "question": "운전자의 시야가 제한된 작업에서는 신호수를 배치하지 않아도 된다.",
+      "answer": false,
+      "explanation": "운전자의 시야가 제한된 경우 신호수 배치는 법으로 의무화되어 있습니다.",
+      "relatedPage": 2,
+      "relatedUnit": 1
+    },
+    {
+      "id": "q005",
+      "unit": 2,
+      "question": "신호수는 장비의 이동 경로 안에서 신호를 보내야 운전자가 잘 볼 수 있다.",
+      "answer": false,
+      "explanation": "신호수는 반드시 장비 이동 경로 밖의 안전한 위치에서 신호를 보내야 합니다. 경로 내 진입은 매우 위험합니다.",
+      "relatedPage": 3,
+      "relatedUnit": 2
+    },
+    {
+      "id": "q006",
+      "unit": 2,
+      "question": "신호수는 형광 조끼와 안전모를 착용하여 다른 작업자와 구분되어야 한다.",
+      "answer": true,
+      "explanation": "신호수는 식별이 용이하도록 형광 조끼와 안전모를 반드시 착용해야 합니다.",
+      "relatedPage": 3,
+      "relatedUnit": 2
+    },
+    {
+      "id": "q007",
+      "unit": 2,
+      "question": "야간 작업 시 신호수는 일반 깃발 대신 발광 신호봉을 사용해야 한다.",
+      "answer": true,
+      "explanation": "야간에는 시야 확보가 어려우므로 발광 신호봉을 사용하여 신호가 명확히 보이도록 해야 합니다.",
+      "relatedPage": 4,
+      "relatedUnit": 2
+    },
+    {
+      "id": "q008",
+      "unit": 2,
+      "question": "신호수는 빛이 눈에 직접 비추는 위치도 시야 확보를 위해 선택할 수 있다.",
+      "answer": false,
+      "explanation": "빛이 눈에 직접 비추는 위치는 신호수의 시야를 방해하여 위험한 판단 오류를 초래할 수 있으므로 피해야 합니다.",
+      "relatedPage": 4,
+      "relatedUnit": 2
+    },
+    {
+      "id": "q009",
+      "unit": 3,
+      "question": "한 작업 현장에 여러 명의 신호수가 동시에 신호를 보내도 된다.",
+      "answer": false,
+      "explanation": "하나의 작업에는 반드시 한 명의 신호수만 지정해야 합니다. 복수의 신호수가 동시에 신호를 보내면 혼란을 초래합니다.",
+      "relatedPage": 5,
+      "relatedUnit": 3
+    },
+    {
+      "id": "q010",
+      "unit": 3,
+      "question": "긴급 정지 신호는 지정된 신호수만 발신할 수 있다.",
+      "answer": false,
+      "explanation": "긴급 정지 신호는 현장에 있는 누구나 위험 상황 발생 시 즉시 발신할 수 있습니다.",
+      "relatedPage": 5,
+      "relatedUnit": 3
+    },
+    {
+      "id": "q011",
+      "unit": 3,
+      "question": "신호수와 운전자는 작업 시작 전 사용할 신호 체계에 대해 반드시 사전 합의해야 한다.",
+      "answer": true,
+      "explanation": "신호수와 운전자 간의 사전 신호 협의는 오해 없는 정확한 신호 전달을 위해 필수입니다.",
+      "relatedPage": 6,
+      "relatedUnit": 3
+    },
+    {
+      "id": "q012",
+      "unit": 3,
+      "question": "수신호는 작게 표현해도 운전자가 잘 볼 수 있으면 문제없다.",
+      "answer": false,
+      "explanation": "수신호는 항상 크고 명확하게 표현해야 합니다. 작은 신호는 오인될 가능성이 높습니다.",
+      "relatedPage": 6,
+      "relatedUnit": 3
+    },
+    {
+      "id": "q013",
+      "unit": 4,
+      "question": "보권(빨간 깃발)은 위험·정지를 의미하며 즉각적인 작업 중단을 요구할 때 사용한다.",
+      "answer": true,
+      "explanation": "빨간색 보권은 전 세계적으로 위험, 정지, 주의를 의미합니다. 머리 위로 올려 흔들어 사용합니다.",
+      "relatedPage": 7,
+      "relatedUnit": 4
+    },
+    {
+      "id": "q014",
+      "unit": 4,
+      "question": "주권(노란 깃발)은 빨간 보권과 같이 정지 신호로 사용한다.",
+      "answer": false,
+      "explanation": "노란 주권은 진행·서행을 의미합니다. 정지 신호는 빨간 보권을 사용합니다.",
+      "relatedPage": 7,
+      "relatedUnit": 4
+    },
+    {
+      "id": "q015",
+      "unit": 4,
+      "question": "보권으로 긴급 정지를 알릴 때는 두 팔을 X자로 교차한다.",
+      "answer": true,
+      "explanation": "긴급 정지 시 양팔을 X자로 교차하는 신호는 국제적으로 통용되는 즉각 정지 신호입니다.",
+      "relatedPage": 8,
+      "relatedUnit": 4
+    },
+    {
+      "id": "q016",
+      "unit": 4,
+      "question": "진행 허가 신호를 보내기 전에 전방 안전을 확인하지 않아도 된다.",
+      "answer": false,
+      "explanation": "진행 허가 신호 전 전방 안전 확인은 신호수의 가장 중요한 책임 중 하나입니다.",
+      "relatedPage": 8,
+      "relatedUnit": 4
+    },
+    {
+      "id": "q017",
+      "unit": 5,
+      "question": "수평 이동 신호 시 이동 방향의 팔을 앞으로 뻗어 방향을 지시한다.",
+      "answer": true,
+      "explanation": "수평 이동 신호는 팔을 수평으로 펼치고 이동 방향의 팔을 뻗어 방향을 지시합니다.",
+      "relatedPage": 9,
+      "relatedUnit": 5
+    },
+    {
+      "id": "q018",
+      "unit": 5,
+      "question": "운전 방향 직접 지시 시 신호수는 장비 이동 경로 안에 서서 손으로 방향을 안내한다.",
+      "answer": false,
+      "explanation": "신호수는 항상 장비 이동 경로 밖에서 신호를 보내야 합니다.",
+      "relatedPage": 10,
+      "relatedUnit": 5
+    },
+    {
+      "id": "q019",
+      "unit": 5,
+      "question": "이동 중 장애물이 발생하면 즉시 정지 신호를 보내야 한다.",
+      "answer": true,
+      "explanation": "예상치 못한 장애물 발생 시 즉각적인 정지 신호로 사고를 예방해야 합니다.",
+      "relatedPage": 9,
+      "relatedUnit": 5
+    },
+    {
+      "id": "q020",
+      "unit": 6,
+      "question": "서행 신호는 팔을 천천히 위아래로 이동하거나 손바닥을 아래로 밀어내는 동작으로 표현한다.",
+      "answer": true,
+      "explanation": "서행 신호는 속도를 줄이라는 의미로 팔을 천천히 위아래로 움직이거나 손바닥을 아래로 밀어내는 동작을 사용합니다.",
+      "relatedPage": 11,
+      "relatedUnit": 6
+    },
+    {
+      "id": "q021",
+      "unit": 6,
+      "question": "신호수는 피로가 누적되어도 교대 요청 없이 업무를 계속해야 한다.",
+      "answer": false,
+      "explanation": "피로한 상태에서의 신호 오류는 대형 사고로 이어질 수 있습니다. 피로 누적 시 반드시 교대를 요청해야 합니다.",
+      "relatedPage": 12,
+      "relatedUnit": 6
+    },
+    {
+      "id": "q022",
+      "unit": 6,
+      "question": "작업 종료 신호는 양팔을 몸 앞에서 X자 교차 후 내리는 동작이다.",
+      "answer": true,
+      "explanation": "작업 종료 신호는 양팔을 X자 교차 후 아래로 내리는 동작으로 표현합니다.",
+      "relatedPage": 12,
+      "relatedUnit": 6
+    },
+    {
+      "id": "q023",
+      "unit": 6,
+      "question": "신호 중 휴대폰을 잠깐 사용해도 안전에 영향을 미치지 않는다.",
+      "answer": false,
+      "explanation": "신호 중 휴대폰 사용은 주의 분산을 초래하여 심각한 사고로 이어질 수 있습니다. 신호 중 휴대폰 사용은 절대 금지입니다.",
+      "relatedPage": 12,
+      "relatedUnit": 6
+    },
+    {
+      "id": "q024",
+      "unit": 3,
+      "question": "운전자가 신호를 확인했는지 반드시 눈을 마주쳐 확인해야 한다.",
+      "answer": true,
+      "explanation": "신호 전달의 완성은 운전자가 신호를 인지했는지 눈맞춤으로 확인하는 것입니다.",
+      "relatedPage": 6,
+      "relatedUnit": 3
+    },
+    {
+      "id": "q025",
+      "unit": 2,
+      "question": "신호수는 장비 선회 반경 밖에 위치해야 한다.",
+      "answer": true,
+      "explanation": "장비의 선회(회전) 반경 안에 있으면 장비 회전 시 충돌 위험이 있습니다. 반드시 선회 반경 밖에 위치해야 합니다.",
+      "relatedPage": 4,
+      "relatedUnit": 2
+    }
+  ]
+}

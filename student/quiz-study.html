@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>학습 퀴즈</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; display: flex; flex-direction: column; }
+
+    .header { padding: 1rem 1rem 0.5rem; display: flex; align-items: center; gap: 0.7rem; }
+    .header a { color: #4f8ef7; text-decoration: none; font-size: 0.85rem; }
+    .header h1 { font-size: 1.1rem; flex: 1; }
+
+    /* 진행 */
+    .progress-wrap { padding: 0 1rem 0.8rem; }
+    .progress-row  { display: flex; justify-content: space-between; font-size: 0.78rem; color: #888; margin-bottom: 0.35rem; }
+    .progress-track { height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+    .progress-fill  { height: 100%; background: #27ae60; border-radius: 3px; transition: width 0.3s; }
+
+    /* 문제 카드 */
+    .question-card {
+      margin: 0 1rem; background: #1a1a2e;
+      border-radius: 1.2rem; padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1rem;
+    }
+    .q-unit   { font-size: 0.72rem; color: #4f8ef7; }
+    .q-text   { font-size: 1.05rem; line-height: 1.6; font-weight: 500; }
+
+    /* OX 버튼 */
+    .ox-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-top: 0.5rem; }
+    .ox-btn {
+      padding: 1.1rem; border: 2.5px solid transparent;
+      border-radius: 1rem; font-size: 2rem; font-weight: bold;
+      cursor: pointer; background: rgba(255,255,255,0.06);
+      color: #fff; transition: transform 0.1s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ox-btn:active { transform: scale(0.95); }
+    .ox-btn.o { border-color: rgba(39,174,96,0.4); }
+    .ox-btn.x { border-color: rgba(231,76,60,0.4); }
+    .ox-btn.correct-flash { background: rgba(39,174,96,0.3) !important; border-color: #27ae60 !important; }
+    .ox-btn.wrong-flash   { background: rgba(231,76,60,0.3) !important; border-color: #e74c3c !important; }
+    .ox-btn:disabled { cursor: default; }
+
+    /* 피드백 */
+    .feedback-box {
+      margin: 0.8rem 1rem 0; padding: 1rem 1.1rem;
+      border-radius: 1rem; font-size: 0.85rem; line-height: 1.6;
+      display: none;
+    }
+    .feedback-box.correct { background: rgba(39,174,96,0.15); border: 1px solid rgba(39,174,96,0.4); }
+    .feedback-box.wrong   { background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.35); }
+    .feedback-box .fb-title { font-weight: bold; margin-bottom: 0.3rem; font-size: 0.92rem; }
+    .feedback-box .fb-link  { color: #4f8ef7; font-size: 0.78rem; margin-top: 0.4rem; display: block; text-decoration: none; }
+
+    .next-btn {
+      display: none; margin: 1rem; padding: 0.85rem;
+      background: #4f8ef7; color: #fff; border: none;
+      border-radius: 0.9rem; font-size: 1rem; font-weight: bold;
+      cursor: pointer; width: calc(100% - 2rem);
+    }
+
+    /* AI 교관 말풍선 */
+    .tutor-bubble {
+      margin: 0.8rem 1rem 0;
+      background: #1a1a2e; border-radius: 1rem; padding: 0.9rem 1rem;
+      display: flex; gap: 0.7rem; align-items: flex-start;
+      border: 1px solid rgba(79,142,247,0.2); display: none;
+    }
+    .tutor-bubble .t-avatar { font-size: 1.6rem; flex-shrink: 0; }
+    .tutor-bubble .t-msg    { font-size: 0.82rem; color: #ccc; line-height: 1.55; }
+
+    /* 완료 화면 */
+    #complete-screen {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; flex: 1; padding: 2rem; gap: 1.2rem; text-align: center;
+    }
+    #complete-screen .c-icon  { font-size: 3.5rem; }
+    #complete-screen .c-score { font-size: 3rem; font-weight: bold; }
+    #complete-screen .c-msg   { font-size: 0.9rem; color: #ddd; line-height: 1.6; }
+    .c-actions { display: flex; gap: 0.7rem; width: 100%; }
+    .c-actions button { flex: 1; padding: 0.75rem; border: none; border-radius: 0.8rem; font-size: 0.9rem; font-weight: bold; cursor: pointer; }
+    .btn-retry { background: #4f8ef7; color: #fff; }
+    .btn-home  { background: #333; color: #ddd; }
+    .wrong-summary { background: #1a1a2e; border-radius: 0.9rem; padding: 1rem; width: 100%; text-align: left; }
+    .wrong-summary h4 { font-size: 0.85rem; margin-bottom: 0.6rem; color: #e55; }
+    .wrong-item { font-size: 0.78rem; color: #aaa; padding: 0.3rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); line-height: 1.5; }
+  </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div id="quiz-screen" style="display:flex;flex-direction:column;flex:1">
+  <div class="header">
+    <a href="./home.html">← 홈</a>
+    <h1>학습 퀴즈</h1>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-row">
+      <span id="q-counter">1 / 10</span>
+      <span id="q-unit-label">1단원</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="q-progress" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="question-card">
+    <div class="q-unit" id="q-unit"></div>
+    <div class="q-text" id="q-text">문제를 불러오는 중...</div>
+    <div class="ox-row">
+      <button class="ox-btn o" id="btn-o" onclick="submitAnswer(true)">⭕</button>
+      <button class="ox-btn x" id="btn-x" onclick="submitAnswer(false)">❌</button>
+    </div>
+  </div>
+
+  <div class="feedback-box" id="feedback-box">
+    <div class="fb-title" id="fb-title"></div>
+    <div id="fb-text"></div>
+    <a id="fb-link" class="fb-link" href="#" style="display:none">관련 단원 보기 →</a>
+  </div>
+
+  <div class="tutor-bubble" id="tutor-bubble">
+    <div class="t-avatar">🤖</div>
+    <div class="t-msg" id="tutor-msg"></div>
+  </div>
+
+  <button class="next-btn" id="next-btn" onclick="nextQuestion()">다음 문제 →</button>
+</div>
+
+<div id="complete-screen">
+  <div class="c-icon" id="c-icon">🎉</div>
+  <div class="c-score" id="c-score">0점</div>
+  <div class="c-msg" id="c-msg"></div>
+  <div class="wrong-summary" id="wrong-summary" style="display:none">
+    <h4>❌ 틀린 문제 목록</h4>
+    <div id="wrong-list"></div>
+  </div>
+  <div class="c-actions">
+    <button class="btn-retry" onclick="retryQuiz()">다시 풀기</button>
+    <button class="btn-home" onclick="location.href='./home.html'">홈으로</button>
+  </div>
+</div>
+
+<script src="../js/session-manager.js"></script>
+<script src="../js/data-manager.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+<script src="../js/quiz-engine.js"></script>
+<script src="../js/ai-tutor.js"></script>
+
+<script>
+  let wrongAnswers = [];
+  let tutorTimeout = null;
+
+  SessionManager.requireSession(async (session) => {
+    AiTutor.init();
+    AiTutor.setVoiceEnabled(false);
+
+    await FirebaseManager.init();
+
+    // 강사 퀴즈 발사 감지
+    FirebaseManager.watchActiveQuiz(quizData => {
+      if (quizData && quizData.timestamp) {
+        const age = Date.now() - quizData.timestamp;
+        if (age < 60000) { // 1분 이내 발사된 퀴즈만
+          const unit = quizData.unit ? `?unit=${quizData.unit}` : '';
+          if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
+            location.href = `./quiz-test.html${unit}`;
+          }
+        }
+      }
+    });
+
+    const ok = await QuizEngine.init({ count: 10, shuffled: true, quizMode: 'study' });
+    if (!ok) {
+      document.getElementById('q-text').textContent = '퀴즈를 불러올 수 없습니다. 네트워크를 확인해주세요.';
+      return;
+    }
+    renderQuestion();
+  });
+
+  function renderQuestion() {
+    const q = QuizEngine.current();
+    if (!q) { showComplete(); return; }
+
+    const idx = QuizEngine.index();
+    const total = QuizEngine.total();
+
+    document.getElementById('q-counter').textContent = `${idx + 1} / ${total}`;
+    document.getElementById('q-unit-label').textContent = `${q.relatedUnit || '?'}단원`;
+    document.getElementById('q-unit').textContent = `📚 ${q.relatedUnit || ''}단원`;
+    document.getElementById('q-text').textContent = q.question;
+    document.getElementById('q-progress').style.width = (idx / total * 100) + '%';
+
+    // 버튼 초기화
+    document.getElementById('btn-o').disabled = false;
+    document.getElementById('btn-o').className = 'ox-btn o';
+    document.getElementById('btn-x').disabled = false;
+    document.getElementById('btn-x').className = 'ox-btn x';
+    document.getElementById('feedback-box').style.display = 'none';
+    document.getElementById('next-btn').style.display = 'none';
+    document.getElementById('tutor-bubble').style.display = 'none';
+  }
+
+  function submitAnswer(userAnswer) {
+    const result = QuizEngine.answer(userAnswer);
+    if (!result) return;
+
+    document.getElementById('btn-o').disabled = true;
+    document.getElementById('btn-x').disabled = true;
+
+    const btnO = document.getElementById('btn-o');
+    const btnX = document.getElementById('btn-x');
+
+    if (result.correct) {
+      (userAnswer ? btnO : btnX).classList.add('correct-flash');
+    } else {
+      (userAnswer ? btnO : btnX).classList.add('wrong-flash');
+      wrongAnswers.push(result);
+      DataManager.recordWrongAnswer(result.questionId);
+      showAiIntervention(result);
+    }
+
+    // 피드백 표시
+    const fb = document.getElementById('feedback-box');
+    fb.className = 'feedback-box ' + (result.correct ? 'correct' : 'wrong');
+    fb.style.display = 'block';
+    document.getElementById('fb-title').textContent = result.correct ? '✅ 정답!' : '❌ 오답';
+    document.getElementById('fb-text').textContent = result.explanation;
+
+    const link = document.getElementById('fb-link');
+    if (result.relatedUnit) {
+      link.href = `./ai-tutor.html?unit=${result.relatedUnit}`;
+      link.style.display = 'block';
+      link.textContent = `${result.relatedUnit}단원 AI 교관에게 질문하기 →`;
+    } else {
+      link.style.display = 'none';
+    }
+
+    document.getElementById('next-btn').style.display = 'block';
+  }
+
+  function showAiIntervention(result) {
+    clearTimeout(tutorTimeout);
+    const msg = `잠깐요! "${result.question.slice(0, 25)}..." 이 부분은 현장 사고가 많은 내용이에요. 정답은 ${result.correctAnswer ? 'O(맞다)' : 'X(아니다)'}입니다. ${result.explanation}`;
+    document.getElementById('tutor-msg').textContent = msg;
+    document.getElementById('tutor-bubble').style.display = 'flex';
+  }
+
+  function nextQuestion() {
+    const hasNext = QuizEngine.next();
+    if (!hasNext) { showComplete(); return; }
+    renderQuestion();
+  }
+
+  function showComplete() {
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('complete-screen').style.display = 'flex';
+
+    const { correct, total, score } = QuizEngine.getResults();
+    const icon  = score >= 80 ? '🏆' : score >= 60 ? '👍' : '💪';
+    const color = score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e55';
+    const msg   = score >= 80 ? '훌륭해요! 신호수 이론을 잘 이해하고 있습니다!' :
+                  score >= 60 ? `잘 하셨어요! 틀린 ${wrongAnswers.length}문제를 다시 복습해보세요.` :
+                                `조금 더 공부가 필요해요. AI 교관에게 도움을 요청해보세요!`;
+
+    document.getElementById('c-icon').textContent = icon;
+    document.getElementById('c-score').textContent = `${correct} / ${total}`;
+    document.getElementById('c-score').style.color = color;
+    document.getElementById('c-msg').textContent = msg;
+
+    // 오답 목록
+    if (wrongAnswers.length > 0) {
+      const ws = document.getElementById('wrong-summary');
+      ws.style.display = 'block';
+      document.getElementById('wrong-list').innerHTML = wrongAnswers.map(r =>
+        `<div class="wrong-item">✗ ${r.question.slice(0, 40)}${r.question.length > 40 ? '...' : ''}</div>`
+      ).join('');
+    }
+
+    // 학습 결과 저장
+    DataManager.saveQuizResult('study_' + Date.now(), QuizEngine.getResults().results);
+  }
+
+  function retryQuiz() {
+    wrongAnswers = [];
+    document.getElementById('quiz-screen').style.display = 'flex';
+    document.getElementById('complete-screen').style.display = 'none';
+    QuizEngine.init({ count: 10, shuffled: true, quizMode: 'study' }).then(() => renderQuestion());
+  }
+</script>
+</body>
+</html>

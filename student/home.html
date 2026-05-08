@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>신호수 AI 교재 - 홈</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; }
+
+    .header {
+      padding: 1.2rem 1rem 0.8rem;
+      background: linear-gradient(to bottom, #111, transparent);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header h1 { font-size: 1.15rem; }
+    .header .student-badge {
+      background: rgba(79,142,247,0.18); color: #4f8ef7;
+      padding: 0.3rem 0.75rem; border-radius: 2rem; font-size: 0.78rem;
+    }
+
+    .welcome-card {
+      margin: 0 1rem 1.2rem;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 1.2rem; padding: 1.4rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .welcome-card .icon { font-size: 2.4rem; }
+    .welcome-card h2 { font-size: 1.1rem; }
+    .welcome-card p  { font-size: 0.82rem; color: #888; }
+    .progress-bar-wrap { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 0.5rem; }
+    .progress-bar      { height: 100%; background: #4f8ef7; border-radius: 3px; transition: width 0.4s; }
+    .progress-label    { font-size: 0.75rem; color: #4f8ef7; margin-top: 0.3rem; }
+
+    .section-title { font-size: 0.78rem; color: #555; font-weight: bold; letter-spacing: 0.05em; padding: 0 1rem; margin-bottom: 0.5rem; }
+
+    .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem; padding: 0 1rem; margin-bottom: 1.2rem; }
+    .menu-card {
+      background: #1a1a2e; border-radius: 1rem; padding: 1.1rem;
+      cursor: pointer; text-decoration: none; color: #fff;
+      border: 1.5px solid transparent; transition: border-color 0.15s, transform 0.1s;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .menu-card:active { transform: scale(0.97); }
+    .menu-card .m-icon { font-size: 1.8rem; }
+    .menu-card .m-title { font-size: 0.9rem; font-weight: bold; }
+    .menu-card .m-desc  { font-size: 0.72rem; color: #888; line-height: 1.35; }
+    .menu-card.blue   { border-color: rgba(79,142,247,0.35); }
+    .menu-card.green  { border-color: rgba(39,174,96,0.35); }
+    .menu-card.orange { border-color: rgba(243,156,18,0.35); }
+    .menu-card.purple { border-color: rgba(155,89,182,0.35); }
+    .menu-card.red    { border-color: rgba(231,76,60,0.35); }
+    .menu-card.teal   { border-color: rgba(26,188,156,0.35); }
+
+    .ar-banner {
+      margin: 0 1rem 1.2rem;
+      background: linear-gradient(135deg, #0d1b2a, #1b2838);
+      border: 1px solid rgba(79,142,247,0.25);
+      border-radius: 1rem; padding: 1rem;
+      display: flex; align-items: center; gap: 1rem;
+      text-decoration: none; color: #fff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ar-banner:active { opacity: 0.85; }
+    .ar-banner .ar-icon { font-size: 2.2rem; flex-shrink: 0; }
+    .ar-banner .ar-text h3 { font-size: 0.92rem; margin-bottom: 0.2rem; }
+    .ar-banner .ar-text p  { font-size: 0.75rem; color: #888; }
+    .ar-banner .ar-arrow   { margin-left: auto; color: #4f8ef7; font-size: 1.2rem; flex-shrink: 0; }
+
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(10,10,15,0.95); backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex; padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+      padding: 0.4rem; cursor: pointer; text-decoration: none; color: #555;
+      font-size: 0.62rem; -webkit-tap-highlight-color: transparent;
+    }
+    .nav-item .nav-icon { font-size: 1.3rem; }
+    .nav-item.active { color: #4f8ef7; }
+
+    .pb { height: 5rem; }
+  </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div class="header">
+  <h1>🪖 신호수 AI 교재</h1>
+  <div class="student-badge" id="student-badge">로딩중...</div>
+</div>
+
+<div class="welcome-card" id="welcome-card">
+  <div class="icon">👋</div>
+  <h2 id="welcome-title">안녕하세요!</h2>
+  <p id="welcome-sub">신호수 교육을 시작해봅시다</p>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+  </div>
+  <div class="progress-label" id="progress-label">진도: 0%</div>
+</div>
+
+<div class="section-title">학습 메뉴</div>
+<div class="menu-grid">
+  <a href="./ai-tutor.html" class="menu-card blue">
+    <div class="m-icon">🤖</div>
+    <div class="m-title">AI 교관</div>
+    <div class="m-desc">무엇이든 물어보세요</div>
+  </a>
+  <a href="./quiz-study.html" class="menu-card green">
+    <div class="m-icon">📝</div>
+    <div class="m-title">학습 퀴즈</div>
+    <div class="m-desc">OX 퀴즈로 학습하기</div>
+  </a>
+  <a href="./quiz-test.html" class="menu-card orange">
+    <div class="m-icon">⏱️</div>
+    <div class="m-title">실력 테스트</div>
+    <div class="m-desc">타이머 OX 테스트</div>
+  </a>
+  <a href="./motion-practice.html" class="menu-card purple">
+    <div class="m-icon">🏋️</div>
+    <div class="m-title">동작 연습</div>
+    <div class="m-desc">AI 자세 분석 연습</div>
+  </a>
+  <a href="./motion-test.html" class="menu-card red">
+    <div class="m-icon">📊</div>
+    <div class="m-title">동작 테스트</div>
+    <div class="m-desc">채점 리포트 생성</div>
+  </a>
+  <a href="../index.html" class="menu-card teal">
+    <div class="m-icon">📷</div>
+    <div class="m-title">AR 체험</div>
+    <div class="m-desc">교재 AR 마커 체험</div>
+  </a>
+</div>
+
+<div class="section-title">AR 교재 바로가기</div>
+<a href="../index.html" class="ar-banner">
+  <div class="ar-icon">🔮</div>
+  <div class="ar-text">
+    <h3>AR 수신호 체험</h3>
+    <p>교재 마커를 카메라로 비춰보세요</p>
+  </div>
+  <div class="ar-arrow">›</div>
+</a>
+
+<div class="pb"></div>
+
+<nav class="bottom-nav">
+  <a href="./home.html" class="nav-item active">
+    <div class="nav-icon">🏠</div>
+    <span>홈</span>
+  </a>
+  <a href="./quiz-study.html" class="nav-item">
+    <div class="nav-icon">📝</div>
+    <span>퀴즈</span>
+  </a>
+  <a href="./motion-practice.html" class="nav-item">
+    <div class="nav-icon">🏋️</div>
+    <span>동작</span>
+  </a>
+  <a href="./ai-tutor.html" class="nav-item">
+    <div class="nav-icon">🤖</div>
+    <span>AI교관</span>
+  </a>
+</nav>
+
+<script src="../js/session-manager.js"></script>
+<script src="../js/data-manager.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+<script>
+  SessionManager.requireSession(async session => {
+    await FirebaseManager.init();
+
+    // 강사 퀴즈 발사 감지
+    FirebaseManager.watchActiveQuiz(quizData => {
+      if (quizData && quizData.timestamp && (Date.now() - quizData.timestamp < 60000)) {
+        if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
+          location.href = './quiz-test.html';
+        }
+      }
+    });
+    document.getElementById('student-badge').textContent = session.name;
+    document.getElementById('welcome-title').textContent = `안녕하세요, ${session.name}님!`;
+
+    // Firebase에 접속 정보 업데이트
+    FirebaseManager.saveStudentData(session.studentId, {
+      name: session.name, number: session.number,
+      lastSeen: new Date().toISOString()
+    }).catch(() => {});
+
+    const days = SessionManager.getDaysSinceLastAccess();
+    const progress = DataManager.getProgress();
+    const unit = session.currentUnit || 1;
+    const totalUnits = 6;
+    const pct = Math.round(((unit - 1) / totalUnits) * 100);
+
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `진도: ${unit}단원 학습 중 (${pct}% 완료)`;
+
+    if (days >= 3) {
+      document.getElementById('welcome-sub').textContent =
+        `${days}일 만에 오셨네요! ${unit}단원부터 다시 시작해볼까요?`;
+    } else {
+      document.getElementById('welcome-sub').textContent =
+        `${unit}단원 학습 중 · 계속 열심히 해봅시다!`;
+    }
+  });
+</script>
+</body>
+</html>

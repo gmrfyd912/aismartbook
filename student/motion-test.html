@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>동작 테스트</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; height: 100dvh; overflow: hidden; }
+    .screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
+    .screen.hidden { display: none !important; }
+
+    /* 설정 화면 */
+    #config-screen { background: #0a0a0f; align-items: center; justify-content: center; gap: 1.2rem; padding: 1.5rem; }
+    #config-screen h1 { font-size: 1.3rem; }
+    #config-screen p  { font-size: 0.82rem; color: #888; text-align: center; line-height: 1.6; }
+    .config-card { background: #1a1a2e; border-radius: 1rem; padding: 1.2rem; width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 1rem; }
+    .cfg-row { display: flex; flex-direction: column; gap: 0.3rem; }
+    .cfg-row label { font-size: 0.82rem; color: #aaa; }
+    .cfg-row input { padding: 0.6rem 0.8rem; background: #111; border: 1px solid #333; border-radius: 0.6rem; color: #fff; font-size: 1rem; outline: none; }
+    .cfg-row input:focus { border-color: #4f8ef7; }
+    .cfg-hint { font-size: 0.73rem; color: #555; }
+    .cfg-actions { display: flex; gap: 0.7rem; }
+    .cfg-actions button { flex: 1; padding: 0.7rem; border: none; border-radius: 0.7rem; font-size: 0.9rem; font-weight: bold; cursor: pointer; }
+    #cfg-cancel { background: #222; color: #aaa; }
+    #cfg-ok     { background: #4f8ef7; color: #fff; }
+
+    /* 연습 화면 */
+    #practice-screen { background: #000; }
+    #cam-wrap { position: absolute; inset: 0; }
+    #cam-video  { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #cam-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+
+    #ref-pip { position: absolute; bottom: 8rem; right: 0.8rem; z-index: 10; width: 110px; border-radius: 0.8rem; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); background: #000; }
+    #ref-video { width: 100%; display: block; }
+    #ref-pip-label { font-size: 0.62rem; color: #aaa; text-align: center; padding: 0.2rem; background: rgba(0,0,0,0.6); }
+
+    #top-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0.7rem 0.9rem; background: linear-gradient(to bottom, rgba(0,0,0,0.65), transparent); }
+    #top-bar-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+    #back-btn-p { background: rgba(0,0,0,0.5); color: #fff; border: none; border-radius: 2rem; padding: 0.38rem 0.85rem; font-size: 0.8rem; cursor: pointer; backdrop-filter: blur(6px); }
+    #pose-title-badge { background: rgba(0,0,0,0.5); padding: 0.32rem 0.85rem; border-radius: 2rem; font-size: 0.85rem; font-weight: bold; backdrop-filter: blur(6px); }
+
+    #test-progress-bar { display: none; align-items: center; gap: 0.5rem; }
+    #test-progress-label { font-size: 0.75rem; color: #fff; background: rgba(0,0,0,0.5); padding: 0.25rem 0.6rem; border-radius: 1rem; backdrop-filter: blur(6px); }
+    #test-dots-wrap { display: flex; gap: 4px; }
+    .tdot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+    .tdot.pass { background: #27ae60; } .tdot.fail { background: #e74c3c; } .tdot.cur { background: #4f8ef7; animation: dp 0.8s ease-in-out infinite; }
+    @keyframes dp { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    #no-pose-banner { position: absolute; top: 3.8rem; left: 50%; transform: translateX(-50%); z-index: 8; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.8rem; padding: 0.32rem 0.85rem; border-radius: 2rem; white-space: nowrap; backdrop-filter: blur(6px); pointer-events: none; }
+    #no-pose-banner.hidden { display: none; }
+
+    #countdown-overlay { position: absolute; inset: 0; z-index: 12; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); gap: 0.8rem; }
+    #countdown-overlay.hidden { display: none; }
+    #countdown-pose-name { font-size: 1rem; color: #aaa; }
+    #countdown-number { font-size: 6.5rem; font-weight: bold; color: #fff; animation: pulse 0.9s ease-in-out infinite; text-shadow: 0 0 30px rgba(79,142,247,0.7); }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+
+    #score-panel { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; padding: 0.65rem 1rem 1rem; background: linear-gradient(to top, rgba(0,0,0,0.88) 60%, transparent 100%); }
+    #score-row { display: flex; align-items: baseline; gap: 0.35rem; margin-bottom: 0.3rem; }
+    #score-number { font-size: 2.7rem; font-weight: bold; line-height: 1; transition: color 0.25s; font-variant-numeric: tabular-nums; }
+    #score-unit { font-size: 0.82rem; color: #888; }
+    #score-bar-wrap { height: 7px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; margin-bottom: 0.4rem; }
+    #score-bar { height: 100%; width: 0%; border-radius: 4px; transition: width 0.2s, background 0.25s; }
+    #status-text { font-size: 0.82rem; color: #ddd; }
+
+    #passfail-overlay { position: absolute; inset: 0; z-index: 18; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.72); backdrop-filter: blur(6px); }
+    #passfail-overlay.hidden { display: none; }
+    #passfail-box { text-align: center; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; animation: popIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes popIn { from{opacity:0;transform:scale(0.65)} to{opacity:1;transform:scale(1)} }
+    #passfail-icon  { font-size: 4rem; }
+    #passfail-label { font-size: 2rem; font-weight: bold; }
+    #passfail-score { font-size: 1rem; color: #ddd; }
+    #passfail-next  { font-size: 0.82rem; color: #888; margin-top: 0.3rem; }
+
+    /* 결과 화면 */
+    #result-screen { background: #0a0a0f; overflow-y: auto; flex-direction: column; }
+    .res-header { padding: 1.2rem 1rem 0.5rem; text-align: center; }
+    .res-header h1 { font-size: 1.2rem; margin-bottom: 0.3rem; }
+    .res-summary { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 1rem; }
+    #res-pass-count { font-size: 3.5rem; font-weight: bold; }
+    #res-pass-label { font-size: 0.85rem; color: #888; }
+    #res-list { padding: 0 1rem 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .tr-item { background: #1a1a2e; border-radius: 0.75rem; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.8rem; }
+    .tr-icon { font-size: 1.3rem; }
+    .tr-info { flex: 1; }
+    .tr-name  { font-size: 0.88rem; font-weight: bold; }
+    .tr-score { font-size: 0.75rem; color: #888; margin-top: 0.1rem; }
+    .tr-badge { font-size: 0.72rem; font-weight: bold; padding: 0.2rem 0.55rem; border-radius: 1rem; }
+    .tr-pass { background: rgba(39,174,96,0.2); color: #27ae60; }
+    .tr-fail { background: rgba(229,57,53,0.2); color: #e55; }
+    .res-actions { display: flex; gap: 0.7rem; padding: 1rem; }
+    .res-actions button { flex: 1; padding: 0.72rem; border: none; border-radius: 0.8rem; font-size: 0.9rem; font-weight: bold; cursor: pointer; }
+    #res-retry { background: #4f8ef7; color: #fff; }
+    #res-home  { background: #333; color: #ddd; }
+    .firebase-badge { text-align: center; padding: 0 1rem 0.5rem; font-size: 0.75rem; color: #27ae60; display: none; }
+  </style>
+</head>
+<body>
+
+<!-- 설정 화면 -->
+<div id="config-screen" class="screen">
+  <div style="font-size:2.2rem">📋</div>
+  <h1>동작 테스트</h1>
+  <p>피드백 없이 동작을 측정하고<br>채점 리포트를 생성합니다</p>
+  <div class="config-card">
+    <div class="cfg-row">
+      <label>문항 수</label>
+      <input type="number" id="cfg-count" value="5" min="1" max="8">
+      <span class="cfg-hint" id="cfg-hint">최대 8개 동작</span>
+    </div>
+    <div class="cfg-row">
+      <label>통과 기준 점수 (0~100)</label>
+      <input type="number" id="cfg-pass" value="70" min="10" max="100">
+      <span class="cfg-hint">이 점수 이상이면 통과</span>
+    </div>
+    <div class="cfg-actions">
+      <button id="cfg-cancel" onclick="location.href='./home.html'">취소</button>
+      <button id="cfg-ok" onclick="startTest()">테스트 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 연습 화면 -->
+<div id="practice-screen" class="screen hidden">
+  <div id="cam-wrap">
+    <video id="cam-video" autoplay muted playsinline></video>
+    <canvas id="cam-canvas"></canvas>
+  </div>
+
+  <div id="top-bar">
+    <div id="top-bar-row1">
+      <button id="back-btn-p" onclick="abortTest()">✕ 중단</button>
+      <div id="pose-title-badge">동작 측정</div>
+    </div>
+    <div id="test-progress-bar">
+      <span id="test-progress-label">1 / 5</span>
+      <div id="test-dots-wrap"></div>
+    </div>
+  </div>
+
+  <div id="no-pose-banner" class="hidden">전신이 카메라에 보이도록 서주세요</div>
+
+  <div id="ref-pip">
+    <video id="ref-video" muted playsinline></video>
+    <div id="ref-pip-label">참고 동작</div>
+  </div>
+
+  <div id="countdown-overlay" class="hidden">
+    <div id="countdown-pose-name"></div>
+    <div id="countdown-number">3</div>
+  </div>
+
+  <div id="score-panel">
+    <div id="score-row">
+      <span id="score-number">--</span>
+      <span id="score-unit">점</span>
+    </div>
+    <div id="score-bar-wrap"><div id="score-bar"></div></div>
+    <div id="status-text">동작을 준비해주세요</div>
+  </div>
+
+  <div id="passfail-overlay" class="hidden">
+    <div id="passfail-box">
+      <div id="passfail-icon">✅</div>
+      <div id="passfail-label">통과!</div>
+      <div id="passfail-score">85점</div>
+      <div id="passfail-next">잠시 후 다음 동작으로...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 화면 -->
+<div id="result-screen" class="screen hidden">
+  <div class="res-header"><h1>동작 테스트 결과</h1></div>
+  <div class="res-summary">
+    <div id="res-pass-count" style="color:#4f8ef7">0 / 0</div>
+    <div id="res-pass-label">동작 통과</div>
+  </div>
+  <div id="res-list"></div>
+  <div id="firebase-badge" class="firebase-badge">📡 강사에게 결과 전송됨</div>
+  <div class="res-actions">
+    <button id="res-retry" onclick="location.reload()">다시 테스트</button>
+    <button id="res-home" onclick="location.href='./home.html'">홈으로</button>
+  </div>
+</div>
+
+<script src="../js/session-manager.js"></script>
+<script src="../js/data-manager.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+
+<script type="module">
+  import { PoseLandmarker, FilesetResolver }
+    from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+
+  let poseLandmarker = null;
+  let poseData = null;
+  let testQueue = [], testIndex = 0, testResults = [];
+  let testPassScore = 70, testCount = 5;
+  let currentPose = null, currentSeq = null;
+  let cameraStream = null, rafId = null;
+  let practiceActive = false, scoreHistory = [];
+  let lastInferenceMs = 0, lastDetectTs = 0;
+
+  const camVideo = document.getElementById('cam-video');
+  const camCanvas = document.getElementById('cam-canvas');
+  const ctx = camCanvas.getContext('2d');
+  const refVideo = document.getElementById('ref-video');
+  const offscreen = document.createElement('canvas');
+  const offscreenCtx = offscreen.getContext('2d');
+
+  SessionManager.requireSession(async (session) => {
+    await FirebaseManager.init();
+    try {
+      const [vision, data] = await Promise.all([
+        FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'),
+        fetch('../pose-data.json').then(r => r.json())
+      ]);
+      const mp = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+      const opts = { runningMode:'VIDEO', numPoses:1, minPoseDetectionConfidence:0.3, minPosePresenceConfidence:0.3, minTrackingConfidence:0.3 };
+      try { poseLandmarker = await PoseLandmarker.createFromOptions(vision, { baseOptions:{ modelAssetPath:mp, delegate:'GPU' }, ...opts }); }
+      catch { poseLandmarker = await PoseLandmarker.createFromOptions(vision, { baseOptions:{ modelAssetPath:mp, delegate:'CPU' }, ...opts }); }
+      const warmup = document.createElement('canvas'); warmup.width=4; warmup.height=4;
+      try { poseLandmarker.detectForVideo(warmup,1); } catch {}
+      await new Promise(r=>setTimeout(r,50));
+      poseData = data.poses;
+      const available = poseData.filter(p => p.video && p.sequence).length;
+      document.getElementById('cfg-hint').textContent = `최대 ${available}개 동작`;
+      document.getElementById('cfg-count').max = available;
+      setScreen('config');
+    } catch (e) { alert('AI 모델 초기화 실패: ' + e.message); }
+  });
+
+  window.startTest = function() {
+    testCount     = Math.min(parseInt(document.getElementById('cfg-count').value) || 5, poseData.filter(p=>p.video&&p.sequence).length);
+    testPassScore = parseInt(document.getElementById('cfg-pass').value) || 70;
+    const available = poseData.filter(p => p.video && p.sequence);
+    testQueue   = shuffle([...available]).slice(0, testCount);
+    testIndex   = 0;
+    testResults = [];
+    setScreen('practice');
+    runNext();
+  };
+
+  async function runNext() {
+    if (testIndex >= testQueue.length) { showResult(); return; }
+    currentPose = testQueue[testIndex];
+    try {
+      const res = await fetch('../' + currentPose.sequence);
+      currentSeq = await res.json();
+    } catch {
+      testResults.push({ name: currentPose.name, score: 0, passed: false });
+      testIndex++; runNext(); return;
+    }
+    document.getElementById('pose-title-badge').textContent = currentPose.name;
+    updateProgressUI();
+    await ensureCam();
+    await startCountdown();
+  }
+
+  function updateProgressUI() {
+    const bar = document.getElementById('test-progress-bar');
+    bar.style.display = 'flex';
+    document.getElementById('test-progress-label').textContent = `${testIndex+1} / ${testQueue.length}`;
+    document.getElementById('test-dots-wrap').innerHTML = testQueue.map((_,i) => {
+      if (i < testIndex)  return `<div class="tdot ${testResults[i]?.passed?'pass':'fail'}"></div>`;
+      if (i === testIndex) return `<div class="tdot cur"></div>`;
+      return `<div class="tdot"></div>`;
+    }).join('');
+  }
+
+  async function startCountdown() {
+    practiceActive = false; scoreHistory = [];
+    document.getElementById('passfail-overlay').classList.add('hidden');
+    document.getElementById('countdown-overlay').classList.remove('hidden');
+    document.getElementById('countdown-pose-name').textContent = currentPose.name;
+    document.getElementById('start-overlay-text') && (document.getElementById('start-overlay-text').style.display = 'none');
+    document.getElementById('score-number').textContent = '--';
+    document.getElementById('score-bar').style.width = '0%';
+    document.getElementById('status-text').textContent = '동작을 준비해주세요';
+    refVideo.src = '../' + currentPose.video;
+    refVideo.load(); refVideo.pause(); refVideo.currentTime = 0;
+
+    const el = document.getElementById('countdown-number');
+    for (const n of [3,2,1]) { el.textContent = n; await sleep(900); }
+    el.textContent = '시작!'; await sleep(600);
+    document.getElementById('countdown-overlay').classList.add('hidden');
+    beginRound();
+  }
+
+  function beginRound() {
+    practiceActive = true;
+    refVideo.currentTime = 0;
+    refVideo.play().catch(()=>{});
+    document.getElementById('status-text').textContent = '동작을 따라해보세요!';
+    refVideo.addEventListener('ended', onVideoEnded, { once: true });
+  }
+
+  function onVideoEnded() {
+    practiceActive = false;
+    refVideo.pause();
+    const avg = avgScore();
+    const passed = avg >= testPassScore;
+    testResults.push({ name: currentPose.name, score: avg, passed });
+    DataManager.saveMotionScore(currentPose.id, avg);
+
+    const ov = document.getElementById('passfail-overlay');
+    document.getElementById('passfail-icon').textContent  = passed ? '✅' : '❌';
+    document.getElementById('passfail-label').textContent = passed ? '통과!' : '미통과';
+    document.getElementById('passfail-label').style.color = passed ? '#27ae60' : '#e55';
+    document.getElementById('passfail-score').textContent = `${avg}점 (기준 ${testPassScore}점)`;
+    ov.classList.remove('hidden');
+
+    setTimeout(() => {
+      ov.classList.add('hidden');
+      testIndex++;
+      runNext();
+    }, 2200);
+  }
+
+  async function ensureCam() {
+    if (cameraStream) return;
+    const attempts = [
+      { video:{ facingMode:{ ideal:'user' }, width:{ ideal:640 }, height:{ ideal:480 } } },
+      { video:{ facingMode:{ ideal:'user' } } },
+      { video: true }
+    ];
+    let lastErr;
+    for (const c of attempts) {
+      try { cameraStream = await navigator.mediaDevices.getUserMedia(c); break; }
+      catch (e) { lastErr = e; cameraStream = null; }
+    }
+    if (!cameraStream) { alert('카메라 권한을 허용해주세요.'); return; }
+    camVideo.srcObject = cameraStream;
+    try { await camVideo.play(); } catch {}
+    if (camVideo.readyState < 3) {
+      await Promise.race([
+        new Promise(r => camVideo.addEventListener('canplay', r, { once: true })),
+        new Promise(r => setTimeout(r, 5000))
+      ]);
+    }
+    startLoop();
+  }
+
+  function stopCam() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    camVideo.srcObject = null;
+  }
+
+  function startLoop() {
+    if (rafId) return;
+    function frame() {
+      rafId = requestAnimationFrame(frame);
+      if (camVideo.readyState < 2 || camVideo.paused || !camVideo.videoWidth) return;
+      const now = performance.now();
+      if (now - lastInferenceMs < 100) return;
+      if (now <= lastDetectTs) return;
+      lastInferenceMs = now; lastDetectTs = now;
+
+      offscreen.width  = camVideo.videoWidth; offscreen.height = camVideo.videoHeight;
+      offscreenCtx.drawImage(camVideo, 0, 0);
+      camCanvas.width  = camVideo.videoWidth; camCanvas.height = camVideo.videoHeight;
+      ctx.clearRect(0, 0, camCanvas.width, camCanvas.height);
+
+      let result;
+      try { result = poseLandmarker.detectForVideo(offscreen, now); } catch { return; }
+      const lms = result?.landmarks?.[0];
+
+      ctx.save(); ctx.scale(-1,1); ctx.translate(-camCanvas.width, 0);
+      if (lms && lms.length >= 33) {
+        document.getElementById('no-pose-banner').classList.add('hidden');
+        drawSkeleton(lms);
+        if (practiceActive) processFrame(lms);
+      } else {
+        document.getElementById('no-pose-banner').classList.remove('hidden');
+      }
+      ctx.restore();
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  const POSE_CONN = [[0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,29],[28,30],[27,31],[28,32],[29,31],[30,32]];
+  const JOINTS = [[24,12,14,2.5],[12,14,16,2.0],[23,11,13,2.5],[11,13,15,2.0],[12,11,23,1.0],[24,23,11,1.0]];
+
+  function drawSkeleton(lms) {
+    const w = camCanvas.width, h = camCanvas.height;
+    const color = currentPose?.color || '#00ffcc';
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for (const [a,b] of POSE_CONN) {
+      const p1=lms[a],p2=lms[b];
+      if(!p1||!p2||(p1.visibility??1)<0.3||(p2.visibility??1)<0.3) continue;
+      ctx.beginPath(); ctx.moveTo(p1.x*w,p1.y*h); ctx.lineTo(p2.x*w,p2.y*h); ctx.stroke();
+    }
+    ctx.fillStyle = color;
+    for (const p of lms) {
+      if((p.visibility??1)<0.3) continue;
+      ctx.beginPath(); ctx.arc(p.x*w,p.y*h,4,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  function getAngle(a,v,c) {
+    const v1={x:a.x-v.x,y:a.y-v.y},v2={x:c.x-v.x,y:c.y-v.y};
+    const dot=v1.x*v2.x+v1.y*v2.y,mag=Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y);
+    if(mag===0) return 0;
+    return Math.acos(Math.min(1,Math.max(-1,dot/mag)))*180/Math.PI;
+  }
+
+  function comparePoses(ref, live) {
+    let total=0,w=0;
+    for(const [p1,v,p2,wt] of JOINTS) {
+      if((live[p1]?.visibility??1)<0.4||(live[v]?.visibility??1)<0.4||(live[p2]?.visibility??1)<0.4) continue;
+      const diff=Math.abs(getAngle(ref[p1],ref[v],ref[p2])-getAngle(live[p1],live[v],live[p2]));
+      total+=Math.max(0,1-diff/90)*wt; w+=wt;
+    }
+    if(w===0) return 0;
+    return Math.round((total/w)*100);
+  }
+
+  function processFrame(lms) {
+    const f = currentSeq?.frames;
+    if(!f?.length) return;
+    const t = refVideo.currentTime;
+    let best=-1;
+    for(const frame of f) {
+      if(Math.abs(frame.time-t)>0.5) continue;
+      const s=comparePoses(frame.landmarks,lms);
+      if(s>best) best=s;
+    }
+    if(best<0) {
+      let lo=0,hi=f.length-1;
+      while(lo<hi){const m=(lo+hi)>>1;if(f[m].time<t)lo=m+1;else hi=m;}
+      if(lo>0&&Math.abs(f[lo-1].time-t)<Math.abs(f[lo].time-t))lo--;
+      best=comparePoses(f[lo].landmarks,lms);
+    }
+    scoreHistory.push(best);
+    const color=best>=80?'#27ae60':best>=60?'#f39c12':'#e74c3c';
+    document.getElementById('score-number').textContent=best;
+    document.getElementById('score-number').style.color=color;
+    document.getElementById('score-bar').style.width=best+'%';
+    document.getElementById('score-bar').style.background=color;
+  }
+
+  function avgScore() {
+    return scoreHistory.length ? Math.round(scoreHistory.reduce((a,b)=>a+b,0)/scoreHistory.length) : 0;
+  }
+
+  async function showResult() {
+    stopCam();
+    setScreen('result');
+
+    const passed = testResults.filter(r => r.passed).length;
+    const total  = testResults.length;
+    const color  = passed/total >= 0.8 ? '#27ae60' : passed/total >= 0.5 ? '#f39c12' : '#e55';
+
+    document.getElementById('res-pass-count').textContent = `${passed} / ${total}`;
+    document.getElementById('res-pass-count').style.color = color;
+    document.getElementById('res-pass-label').textContent = `동작 통과 (기준 ${testPassScore}점)`;
+
+    document.getElementById('res-list').innerHTML = testResults.map(r => `
+      <div class="tr-item">
+        <div class="tr-icon">${r.passed?'✅':'❌'}</div>
+        <div class="tr-info">
+          <div class="tr-name">${r.name}</div>
+          <div class="tr-score">${r.score}점</div>
+        </div>
+        <div class="tr-badge ${r.passed?'tr-pass':'tr-fail'}">${r.passed?'통과':'미통과'}</div>
+      </div>`).join('');
+
+    // Firebase 전송
+    const session = SessionManager.get();
+    if (session) {
+      const scoreAvg = Math.round(testResults.reduce((a,b)=>a+b.score,0) / testResults.length);
+      try {
+        await FirebaseManager.saveMotionResult(session.studentId, {
+          name: session.name, passed, total, passScore: testPassScore,
+          results: testResults, scoreAvg
+        });
+        document.getElementById('firebase-badge').style.display = 'block';
+      } catch {}
+    }
+  }
+
+  window.abortTest = function() {
+    if (!confirm('테스트를 중단할까요?')) return;
+    stopCam();
+    location.href = './home.html';
+  };
+
+  function setScreen(name) {
+    ['config','practice','result'].forEach(id=>document.getElementById(id+'-screen').classList.add('hidden'));
+    document.getElementById(name+'-screen').classList.remove('hidden');
+  }
+
+  function shuffle(arr) { for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr; }
+  function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+</script>
+</body>
+</html>
