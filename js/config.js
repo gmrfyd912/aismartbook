@@ -1,14 +1,18 @@
-// Firebase 설정 - 아래 값을 Firebase 콘솔에서 복사하여 입력하세요
-// Firebase Console → 프로젝트 설정 → 내 앱 → SDK 설정 및 구성
-const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+const firebaseConfig = {
+  apiKey: "AIzaSyBL5tcopKMNAf1XznEqRol1LulYQv73gtM",
+  authDomain: "aismartbook-87522.firebaseapp.com",
+  databaseURL: "https://aismartbook-87522-default-rtdb.firebaseio.com",
+  projectId: "aismartbook-87522",
+  storageBucket: "aismartbook-87522.firebasestorage.app",
+  messagingSenderId: "416747155518",
+  appId: "1:416747155518:web:224159e9790ba6d66d216f"
 };
 
-// Firebase 미설정 시 오프라인(LocalStorage) 모드로만 동작
-const FIREBASE_ENABLED = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
+// Firebase 초기화 (전역 export)
+if (typeof window !== 'undefined') {
+  window.FIREBASE_CONFIG = firebaseConfig;
+}
+
+// firebase-manager.js 호환성 (non-module 스크립트에서 사용)
+const FIREBASE_CONFIG = firebaseConfig;
+const FIREBASE_ENABLED = true;
