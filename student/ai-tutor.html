@@ -346,10 +346,8 @@ let sessionStart  = Date.now();
 let curriculum    = null;
 let messages      = [];      // {type, text}[]
 let cameraStream  = null;
-let lastConcSent  = 0;
-let concScore     = 80;
+let concScore     = 80;   // 로컬 AI 개입 판단용만 사용 (Firebase 미전송)
 let concSmoothed  = 80;
-let lowConcStart  = null;
 
 let wasClassMode = false; // 수업종료 후 재활성화 메시지용
 
@@ -817,14 +815,6 @@ function onFaceResults(res) {
   concSmoothed = Math.round((concSmoothed + concScore) / 2);
 
   updateConcUI();
-  checkLowConcAlert();
-
-  // Firebase 전송 (12s 주기)
-  const now = Date.now();
-  if (now - lastConcSent > 12000 && session) {
-    lastConcSent = now;
-    FirebaseManager.updateConcentration(session.studentId, concSmoothed).catch(() => {});
-  }
 }
 
 function updateConcUI() {
@@ -837,22 +827,6 @@ function updateConcUI() {
   badge.style.color =
     concSmoothed >= 70 ? '#8ef' :
     concSmoothed >= 40 ? '#fd7' : '#f88';
-}
-
-function checkLowConcAlert() {
-  if (concSmoothed < 30) {
-    if (!lowConcStart) { lowConcStart = Date.now(); return; }
-    if (Date.now() - lowConcStart >= 3000 && session) {
-      lowConcStart = null;
-      try {
-        firebase.database()
-          .ref(`students/${session.studentId}/alerts/lowConc`)
-          .set({ score: concSmoothed, ts: Date.now() });
-      } catch {}
-    }
-  } else {
-    lowConcStart = null;
-  }
 }
 
 // ══════════════════════════════════════════════

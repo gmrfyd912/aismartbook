@@ -137,6 +137,24 @@
   box-shadow:0 2px 12px rgba(231,76,60,0.25);
 "></video>
 
+<!-- 실시간 집중도 모니터 (수업중에만 표시) -->
+<div id="conc-monitor" style="display:none">
+  <div class="section-title">강사 카메라 집중도</div>
+  <div style="margin:0 1rem 0.8rem;background:#1a1a2e;border-radius:1.2rem;padding:1.3rem;text-align:center">
+    <div id="conc-score-display" style="font-size:3rem;font-weight:bold;color:#27ae60;line-height:1.1">--</div>
+    <div id="conc-status" style="font-size:0.9rem;margin:0.35rem 0 0.5rem;color:#27ae60">집중도 측정 중...</div>
+    <div id="conc-face-count" style="font-size:0.73rem;color:#555">감지된 학생: 0명</div>
+  </div>
+  <div id="instr-alert" style="
+    display:none; margin:0 1rem 0.8rem;
+    background:rgba(231,76,60,0.12); border:1px solid rgba(231,76,60,0.38);
+    border-radius:0.8rem; padding:0.85rem 1rem;
+  ">
+    <div style="font-size:0.92rem;font-weight:bold;color:#e74c3c;margin-bottom:0.2rem">⚠️ 집중도가 낮습니다!</div>
+    <div style="font-size:0.78rem;color:#c77">퀴즈나 휴식을 추천합니다.</div>
+  </div>
+</div>
+
 <div class="section-title">현황</div>
 <div class="stats-grid">
   <div class="stat-card">
@@ -198,6 +216,9 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<!-- MediaPipe FaceMesh (강사 카메라 집중도 분석용) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
 <script src="../js/config.js"></script>
 <script src="../js/firebase-manager.js"></script>
 
@@ -216,6 +237,13 @@
   let elapsedIv        = null;
   let classStartTime   = null;
   let hiddenTimer      = null;
+
+  // FaceMesh (집중도 측정)
+  let instrFaceMesh  = null;
+  let fmRunning      = false;
+  let instrLastMs    = 0;
+  let classConc      = 100;
+  let lowConcCount   = 0;
 
   // ── 초기화 ────────────────────────────────────────────────
   (async function init() {
@@ -286,6 +314,10 @@
     classStartTime = Date.now();
     await FirebaseManager.setClassSession(true);
 
+    // 집중도 모니터 표시 + FaceMesh 시작
+    document.getElementById('conc-monitor').style.display = 'block';
+    initInstructorFaceMesh(vid);
+
     // Heartbeat (30s)
     heartbeatIv = setInterval(() => FirebaseManager.setHeartbeat(), 30000);
 
@@ -307,6 +339,12 @@
 
     // Firebase 업데이트
     await FirebaseManager.setClassSession(false);
+
+    // FaceMesh 중지 + UI 초기화
+    fmRunning = false;
+    document.getElementById('conc-monitor').style.display = 'none';
+    document.getElementById('instr-alert').style.display  = 'none';
+    lowConcCount = 0;
 
     // 정리
     clearInterval(heartbeatIv);
@@ -433,6 +471,103 @@
     } else {
       document.getElementById('stat-avg-conc').textContent = '--';
       document.getElementById('stat-low-conc').textContent = '0';
+    }
+  }
+
+  // ── 강사 카메라 FaceMesh 집중도 분석 ─────────────────────
+  function initInstructorFaceMesh(videoEl) {
+    if (typeof FaceMesh === 'undefined') return;
+    fmRunning = true;
+    instrLastMs = 0;
+    lowConcCount = 0;
+
+    instrFaceMesh = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+    instrFaceMesh.setOptions({
+      maxNumFaces: 12,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.4,
+      minTrackingConfidence: 0.4
+    });
+    instrFaceMesh.onResults(analyzeClassConcentration);
+
+    function loop() {
+      if (!fmRunning || !cameraStream) return;
+      requestAnimationFrame(loop);
+      if (!videoEl.readyState || videoEl.paused || !videoEl.videoWidth) return;
+      const now = performance.now();
+      if (now - instrLastMs < 500) return; // ~2 fps
+      instrLastMs = now;
+      instrFaceMesh.send({ image: videoEl }).catch(() => {});
+    }
+    loop();
+  }
+
+  function analyzeClassConcentration(results) {
+    const faces = results.multiFaceLandmarks || [];
+    document.getElementById('conc-face-count').textContent = `감지된 학생: ${faces.length}명`;
+
+    if (!faces.length) {
+      document.getElementById('conc-score-display').textContent = '--';
+      document.getElementById('conc-status').textContent = '화면에 학생이 없습니다';
+      document.getElementById('conc-status').style.color = '#555';
+      return;
+    }
+
+    let total = 0;
+    faces.forEach(lms => {
+      let score = 100;
+
+      // EAR — 졸음 감지
+      const d = (a, b) => Math.hypot(lms[a].x - lms[b].x, lms[a].y - lms[b].y);
+      const earL = (d(160,144) + d(158,153)) / (2 * d(33,133));
+      const earR = (d(385,380) + d(387,373)) / (2 * d(362,263));
+      const ear  = (earL + earR) / 2;
+      if      (ear < 0.15) score -= 50;
+      else if (ear < 0.20) score -= 25;
+
+      // 고개 방향 — 시선 이탈 감지
+      const fW  = lms[454].x - lms[234].x;
+      const fH  = lms[152].y - lms[10].y;
+      const yaw   = fW > 0 ? Math.abs((lms[1].x - (lms[234].x + lms[454].x)/2) / (fW/2)) : 0;
+      const pitch = fH > 0 ? Math.abs((lms[1].y - (lms[10].y  + lms[152].y)/2) / (fH/2)) : 0;
+      if (yaw > 0.35 || pitch > 0.35) score -= 30;
+
+      total += Math.max(0, score);
+    });
+
+    classConc = Math.round(total / faces.length);
+
+    const scoreEl  = document.getElementById('conc-score-display');
+    const statusEl = document.getElementById('conc-status');
+    scoreEl.textContent = classConc + '%';
+
+    if (classConc >= 70) {
+      scoreEl.style.color  = '#27ae60';
+      statusEl.textContent = '집중 양호 😊';
+      statusEl.style.color = '#27ae60';
+    } else if (classConc >= 40) {
+      scoreEl.style.color  = '#f39c12';
+      statusEl.textContent = '집중도 보통 😐';
+      statusEl.style.color = '#f39c12';
+    } else {
+      scoreEl.style.color  = '#e74c3c';
+      statusEl.textContent = '집중도 낮음 ⚠️';
+      statusEl.style.color = '#e74c3c';
+    }
+
+    // 자동 개입 알림 (3초 이상 40% 미만 지속 → 알림 + 진동)
+    if (classConc < 40) {
+      lowConcCount++;
+      if (lowConcCount >= 6) {
+        document.getElementById('instr-alert').style.display = 'block';
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        lowConcCount = 0;
+      }
+    } else {
+      lowConcCount = 0;
+      document.getElementById('instr-alert').style.display = 'none';
     }
   }
 
