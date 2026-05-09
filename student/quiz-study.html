@@ -166,16 +166,17 @@
 
     await FirebaseManager.init();
 
-    // 강사 퀴즈 발사 감지
+    // 강사 퀴즈 발사 감지 (이미 응한 퀴즈는 재팝업 방지)
     FirebaseManager.watchActiveQuiz(quizData => {
-      if (quizData && quizData.timestamp) {
-        const age = Date.now() - quizData.timestamp;
-        if (age < 60000) { // 1분 이내 발사된 퀴즈만
-          const unit = quizData.unit ? `?unit=${quizData.unit}` : '';
-          if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
-            location.href = `./quiz-test.html${unit}`;
-          }
-        }
+      if (!quizData?.timestamp) return;
+      const age = Date.now() - quizData.timestamp;
+      if (age >= 60000) return;
+      const handled = parseInt(localStorage.getItem('handledQuizTs') || '0');
+      if (handled === quizData.timestamp) return;
+      localStorage.setItem('handledQuizTs', String(quizData.timestamp));
+      const unit = quizData.unit ? `?unit=${quizData.unit}` : '';
+      if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
+        location.href = `./quiz-test.html${unit}`;
       }
     });
 

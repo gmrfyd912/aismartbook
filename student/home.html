@@ -209,12 +209,16 @@
       bar.style.color      = active ? '#e74c3c' : '#27ae60';
     });
 
-    // 강사 퀴즈 발사 감지
+    // 강사 퀴즈 발사 감지 (이미 응한 퀴즈는 재팝업 방지)
     FirebaseManager.watchActiveQuiz(quizData => {
-      if (quizData && quizData.timestamp && (Date.now() - quizData.timestamp < 60000)) {
-        if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
-          location.href = './quiz-test.html';
-        }
+      if (!quizData?.timestamp) return;
+      const age = Date.now() - quizData.timestamp;
+      if (age >= 60000) return; // 1분 지난 퀴즈 무시
+      const handled = parseInt(localStorage.getItem('handledQuizTs') || '0');
+      if (handled === quizData.timestamp) return; // 이미 처리한 퀴즈
+      localStorage.setItem('handledQuizTs', String(quizData.timestamp));
+      if (confirm('📢 강사가 퀴즈를 발송했습니다! 지금 응시하시겠습니까?')) {
+        location.href = './quiz-test.html';
       }
     });
     document.getElementById('student-badge').textContent = session.name;
