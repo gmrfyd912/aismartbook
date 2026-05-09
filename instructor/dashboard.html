@@ -132,7 +132,7 @@
   top:3.5rem; right:0.5rem;
   width:90px; height:72px;
   object-fit:cover; border-radius:0.6rem;
-  transform:scaleX(-1); z-index:25;
+  z-index:25;
   border:2px solid rgba(231,76,60,0.55);
   box-shadow:0 2px 12px rgba(231,76,60,0.25);
 "></video>
@@ -296,7 +296,7 @@
     // 전면 카메라 활성화
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+        video: { facingMode: 'environment', width: { ideal: 320 }, height: { ideal: 240 } },
         audio: false
       });
       const vid = document.getElementById('instr-cam');
@@ -425,6 +425,18 @@
   }
 
   // ── 교육생 렌더링 ──────────────────────────────────────────
+  // 이름 기준 중복 제거 (같은 이름이면 lastSync 최신 항목만 유지)
+  function dedupeByName(entries) {
+    const seen = new Map();
+    for (const [id, s] of entries) {
+      const name = s.name || id;
+      if (!seen.has(name) || (s.lastSync || 0) > (seen.get(name)[1].lastSync || 0)) {
+        seen.set(name, [id, s]);
+      }
+    }
+    return [...seen.values()];
+  }
+
   function renderStudents(students) {
     const list = document.getElementById('students-list');
     if (!students || !Object.keys(students).length) {
@@ -432,9 +444,9 @@
       return;
     }
     const cutoff = Date.now() - 3600000;
-    const active = Object.entries(students)
-      .filter(([, s]) => s.lastSync > cutoff)
-      .sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
+    const active = dedupeByName(
+      Object.entries(students).filter(([, s]) => s.lastSync > cutoff)
+    ).sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
     if (!active.length) {
       list.innerHTML = '<div class="no-students">최근 1시간 내 접속자가 없습니다</div>';
       return;
@@ -462,7 +474,10 @@
 
   function updateStats(students) {
     const cutoff = Date.now() - 3600000;
-    const active = Object.values(students).filter(s => s.lastSync > cutoff);
+    // 이름 기준 중복 제거 후 집계
+    const active = dedupeByName(
+      Object.entries(students).filter(([, s]) => s.lastSync > cutoff)
+    ).map(([, s]) => s);
     document.getElementById('stat-online').textContent = active.length;
     if (active.length) {
       const avg = Math.round(active.reduce((a, s) => a + (s.concentration ?? 100), 0) / active.length);

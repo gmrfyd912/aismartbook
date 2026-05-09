@@ -145,11 +145,21 @@
     }
   })();
 
+  function dedupeByName(entries) {
+    const seen = new Map();
+    for (const [id, s] of entries) {
+      const name = s.name || id;
+      if (!seen.has(name) || (s.lastSync || 0) > (seen.get(name)[1].lastSync || 0)) {
+        seen.set(name, [id, s]);
+      }
+    }
+    return [...seen.values()];
+  }
+
   function renderConcChart(students) {
     const chart = document.getElementById('conc-chart');
     const cutoff = Date.now() - 3600000;
-    const active = Object.entries(students)
-      .filter(([, s]) => s.lastSync > cutoff)
+    const active = dedupeByName(Object.entries(students).filter(([, s]) => s.lastSync > cutoff))
       .sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
 
     if (!active.length) {
@@ -173,8 +183,8 @@
   function checkLowConcentration(students) {
     const alertSection = document.getElementById('alert-section');
     const cutoff = Date.now() - 3600000;
-    const lowConc = Object.entries(students)
-      .filter(([, s]) => s.lastSync > cutoff && (s.concentration ?? 100) < 40);
+    const lowConc = dedupeByName(Object.entries(students).filter(([, s]) => s.lastSync > cutoff))
+      .filter(([, s]) => (s.concentration ?? 100) < 40);
 
     if (!lowConc.length) {
       alertSection.innerHTML = '<div class="no-alerts">현재 집중도 저하 알림이 없습니다 ✅</div>';

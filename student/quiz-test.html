@@ -157,6 +157,10 @@
   </div>
 </div>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script src="../js/session-manager.js"></script>
 <script src="../js/data-manager.js"></script>
 <script src="../js/config.js"></script>
@@ -288,13 +292,14 @@
       </div>
     `).join('');
 
+    const quizId = 'test_' + Date.now();
+
     // 학습 데이터 저장
-    DataManager.saveQuizResult('test_' + Date.now(), results);
+    DataManager.saveQuizResult(quizId, results);
 
     // Firebase로 강사에게 전송
     const session = SessionManager.get();
     if (session) {
-      const quizId = 'test_' + Date.now();
       try {
         await FirebaseManager.saveQuizResult(quizId, session.studentId, {
           name: session.name, score, correct, total, results
