@@ -1,4 +1,4 @@
-// AI 개인교관 로직 - Gemini Nano (window.ai) + 키워드 매칭 fallback
+﻿// AI 개인교관 로직 - Gemini Nano (window.ai) + 키워드 매칭 fallback
 const AiTutor = (() => {
   let speechSynthesis = window.speechSynthesis;
   let recognition = null;
@@ -122,7 +122,7 @@ const AiTutor = (() => {
     if (window.ai?.languageModel) {
       try {
         const session = await window.ai.languageModel.create({
-          systemPrompt: `당신은 건설현장 신호수 교육 AI 교관입니다.
+          systemPrompt: `당신은 건설현장 신호수 교육 AI 튜터입니다.
 짧고 명확하게 한국어로 답변하세요. 신호수 교육 관련 질문에만 답변합니다.
 답변은 2~3문장으로 간결하게 해주세요.`
         });

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>AI 교관</title>
+  <title>AI 튜터</title>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
@@ -269,7 +269,7 @@
 <!-- 상단바 -->
 <div id="top-bar">
   <button id="back-btn" onclick="goHome()">← 홈</button>
-  <div id="page-title">🤖 AI 교관</div>
+  <div id="page-title">🤖 AI 튜터</div>
   <span class="top-badge" id="unit-label">1단원</span>
   <span class="top-badge" id="conc-badge">집중 100%</span>
   <button class="top-icon-btn" id="mic-mode-btn" onclick="toggleMic()" title="마이크 OFF — 클릭하여 켜기">🎤</button>
@@ -294,7 +294,7 @@
   <div style="font-size:3.5rem;margin-bottom:1rem">🏫</div>
   <div style="font-size:1.1rem;font-weight:bold;margin-bottom:0.6rem">수업 진행 중입니다</div>
   <div style="font-size:0.85rem;color:#aaa;line-height:1.65;max-width:280px">
-    AI 교관은 수업 종료 후 이용 가능합니다.
+    AI 튜터은 수업 종료 후 이용 가능합니다.
   </div>
 </div>
 
@@ -317,7 +317,7 @@
 <div id="char-container" style="background:transparent!important;background-color:transparent!important;mix-blend-mode:normal;-webkit-background-clip:unset;">
   <img id="char-img"
     src="../assets/instructor_idle.png?v=2"
-    alt="AI 교관"
+    alt="AI 튜터"
     style="background:transparent!important;background-color:transparent!important;mix-blend-mode:normal;-webkit-background-clip:unset;"
     onerror="this.style.display='none';document.getElementById('char-fallback').style.display='block'">
   <div id="char-fallback">🪖</div>
@@ -651,7 +651,7 @@ async function getAiResponse(query) {
     try {
       const ai = await window.ai.languageModel.create({
         systemPrompt:
-          '당신은 신호수 교육 전문 AI 교관입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. ' +
+          '당신은 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. ' +
           '친근하고 명확하게, 짧고 핵심만 답변하세요. 모르는 내용은 교재를 확인하라고 안내하세요.'
       });
       const res = await Promise.race([
