@@ -210,29 +210,31 @@
       color: #fff; font-size: 0.88rem; cursor: pointer;
     }
 
-    /* ── AI 캐릭터 (우측 상단) ── */
+    /* ── AI 캐릭터 (드래그 가능) ── */
     #char-container {
       position: fixed;
-      top: 80px; right: 10px;
       z-index: 15;
       width: 44%;
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      pointer-events: none;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
       animation: slideDown 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
       background: transparent !important;
       background-color: transparent !important;
     }
+    #char-container:active { cursor: grabbing; }
     @keyframes slideDown {
       from { transform: translateY(-60px); opacity: 0; }
       to   { transform: translateY(0);     opacity: 1; }
     }
 
-    /* 캐릭터 이미지 */
+    /* 캐릭터 이미지 — 2배 크기 */
     #char-img {
       width: 100%;
-      height: 42vh;
+      height: 84vh;
       object-fit: contain;
       object-position: top center;
       user-select: none;
@@ -331,6 +333,9 @@ let curriculum    = null;
 let messages      = [];      // {type, text}[]
 let cameraStream  = null;
 let lastConcSent  = 0;
+let concScore     = 80;
+let concSmoothed  = 80;
+let lowConcStart  = null;
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -379,6 +384,7 @@ SessionManager.requireSession(async s => {
   }, 700);
 
   resetIdleTimer();
+  initCharDrag();
 
   window.addEventListener('beforeunload', () => {
     DataManager.addStudyTime(Math.round((Date.now() - sessionStart) / 1000));
@@ -743,7 +749,7 @@ function initFaceMesh(videoEl) {
     requestAnimationFrame(loop);
     if (!videoEl.readyState || videoEl.paused || !videoEl.videoWidth) return;
     const now = performance.now();
-    if (now - lastMs < 250) return; // ~4 fps (face detection)
+    if (now - lastMs < 500) return; // ~2 fps
     lastMs = now;
     fm.send({ image: videoEl }).catch(() => {});
   }
@@ -752,38 +758,76 @@ function initFaceMesh(videoEl) {
 
 function onFaceResults(res) {
   if (!res.multiFaceLandmarks?.length) {
-    frownStart = null; return;
+    frownStart = null;
+    concScore    = Math.max(0, concScore - 2);
+    concSmoothed = Math.round((concSmoothed + concScore) / 2);
+    updateConcUI();
+    return;
   }
   const lms = res.multiFaceLandmarks[0];
 
-  // 눈썹 찌푸림: 좌(55) 우(285) 내측 눈썹 거리 + 코 기준(168)
+  // EAR (Eye Aspect Ratio) — 졸음 감지
+  const d = (a, b) => Math.hypot(lms[a].x - lms[b].x, lms[a].y - lms[b].y);
+  const earL = (d(160,144) + d(158,153)) / (2 * d(33,133));
+  const earR = (d(385,380) + d(387,373)) / (2 * d(362,263));
+  const ear  = (earL + earR) / 2;
+  const drowsy = ear < 0.20;
+
+  // 고개 방향 (yaw/pitch) — 시선 이탈 감지
+  const faceW  = lms[454].x - lms[234].x;
+  const faceH  = lms[152].y - lms[10].y;
+  const yaw    = faceW  > 0 ? (lms[1].x - (lms[234].x + lms[454].x) / 2) / (faceW  / 2) : 0;
+  const pitch  = faceH  > 0 ? (lms[1].y - (lms[10].y  + lms[152].y) / 2) / (faceH  / 2) : 0;
+  const distracted = Math.abs(yaw) > 0.35 || Math.abs(pitch) > 0.35;
+
+  // 눈썹 찌푸림 — 이해 困難 감지 (자동 개입용)
   const lb = lms[55], rb = lms[285], nose = lms[168];
-  if (!lb || !rb || !nose) return;
-
-  const browDist   = Math.abs(lb.x - rb.x);          // 내측 눈썹 수평 거리
-  const browToNose = ((lb.y + rb.y) / 2) - nose.y;   // 눈썹-코 수직 거리
+  const browDist   = Math.abs(lb.x - rb.x);
+  const browToNose = ((lb.y + rb.y) / 2) - nose.y;
   const frowning   = browDist < 0.09 && browToNose < 0.045;
-
   checkFrownIntervention(frowning);
 
-  // 집중도 점수 (졸음: 눈 꺼짐 추정 - 눈 높이로 간이 측정)
-  const leftEyeH  = Math.abs((lms[159]?.y || 0) - (lms[145]?.y || 0));
-  const rightEyeH = Math.abs((lms[386]?.y || 0) - (lms[374]?.y || 0));
-  const eyeOpen   = (leftEyeH + rightEyeH) / 2;
-  const drowsy    = eyeOpen < 0.012;
-  const score     = drowsy ? 30 : frowning ? 60 : 90;
+  // 집중도 누적 계산
+  const delta  = drowsy ? -4 : distracted ? -2 : frowning ? -1 : +2;
+  concScore    = Math.min(100, Math.max(0, concScore + delta));
+  concSmoothed = Math.round((concSmoothed + concScore) / 2);
 
-  const concBadge = document.getElementById('conc-badge');
-  concBadge.style.display = 'inline';
-  concBadge.textContent = `집중 ${score}%`;
-  concBadge.style.background =
-    score >= 70 ? 'rgba(39,174,96,0.32)' :
-    score >= 40 ? 'rgba(243,156,18,0.32)' : 'rgba(220,50,47,0.32)';
+  updateConcUI();
+  checkLowConcAlert();
 
+  // Firebase 전송 (12s 주기)
   const now = Date.now();
   if (now - lastConcSent > 12000 && session) {
     lastConcSent = now;
-    FirebaseManager.updateConcentration(session.studentId, score).catch(() => {});
+    FirebaseManager.updateConcentration(session.studentId, concSmoothed).catch(() => {});
+  }
+}
+
+function updateConcUI() {
+  const badge = document.getElementById('conc-badge');
+  badge.style.display  = 'inline';
+  badge.textContent    = `집중 ${concSmoothed}%`;
+  badge.style.background =
+    concSmoothed >= 70 ? 'rgba(39,174,96,0.32)' :
+    concSmoothed >= 40 ? 'rgba(243,156,18,0.32)' : 'rgba(220,50,47,0.32)';
+  badge.style.color =
+    concSmoothed >= 70 ? '#8ef' :
+    concSmoothed >= 40 ? '#fd7' : '#f88';
+}
+
+function checkLowConcAlert() {
+  if (concSmoothed < 30) {
+    if (!lowConcStart) { lowConcStart = Date.now(); return; }
+    if (Date.now() - lowConcStart >= 3000 && session) {
+      lowConcStart = null;
+      try {
+        firebase.database()
+          .ref(`students/${session.studentId}/alerts/lowConc`)
+          .set({ score: concSmoothed, ts: Date.now() });
+      } catch {}
+    }
+  } else {
+    lowConcStart = null;
   }
 }
 
@@ -871,6 +915,62 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\n/g,'<br>');
+}
+
+// ══════════════════════════════════════════════
+//  AI 캐릭터 드래그 이동
+// ══════════════════════════════════════════════
+function initCharDrag() {
+  const el = document.getElementById('char-container');
+
+  // 저장된 위치 복원 또는 기본값 (우측 상단)
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('charPos')); } catch {}
+  el.style.right = 'auto';
+  el.style.top   = (saved?.top  ?? 80) + 'px';
+  el.style.left  = (saved?.left ?? Math.max(0, window.innerWidth - el.offsetWidth - 10)) + 'px';
+
+  let dragging = false, startX, startY, startLeft, startTop;
+
+  function onDragStart(e) {
+    dragging = true;
+    const p    = e.touches?.[0] ?? e;
+    startX     = p.clientX;
+    startY     = p.clientY;
+    const rect = el.getBoundingClientRect();
+    startLeft  = rect.left;
+    startTop   = rect.top;
+    el.style.opacity   = '0.8';
+    el.style.animation = 'none';
+    e.preventDefault();
+  }
+
+  function onDragMove(e) {
+    if (!dragging) return;
+    const p      = e.touches?.[0] ?? e;
+    const maxL   = window.innerWidth  - el.offsetWidth;
+    const maxT   = window.innerHeight - el.offsetHeight;
+    const newL   = Math.min(maxL, Math.max(0, startLeft + p.clientX - startX));
+    const newT   = Math.min(maxT, Math.max(0, startTop  + p.clientY - startY));
+    el.style.left = newL + 'px';
+    el.style.top  = newT + 'px';
+    e.preventDefault();
+  }
+
+  function onDragEnd() {
+    if (!dragging) return;
+    dragging = false;
+    el.style.opacity = '1';
+    const rect = el.getBoundingClientRect();
+    try { localStorage.setItem('charPos', JSON.stringify({ left: rect.left, top: rect.top })); } catch {}
+  }
+
+  el.addEventListener('mousedown',  onDragStart);
+  el.addEventListener('touchstart', onDragStart, { passive: false });
+  window.addEventListener('mousemove',  onDragMove);
+  window.addEventListener('touchmove',  onDragMove, { passive: false });
+  window.addEventListener('mouseup',    onDragEnd);
+  window.addEventListener('touchend',   onDragEnd);
 }
 </script>
 </body>
