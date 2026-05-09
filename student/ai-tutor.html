@@ -259,6 +259,89 @@
       background: rgba(220,50,47,0.78) !important;
       box-shadow: 0 0 8px rgba(220,50,47,0.55);
     }
+
+    /* ── Gemini 연결 배지 ── */
+    #gemini-badge {
+      font-size: 0.62rem;
+      padding: 0.18rem 0.5rem;
+      border-radius: 2rem;
+      backdrop-filter: blur(6px);
+      flex-shrink: 0;
+      display: none;
+      background: rgba(39,174,96,0.32);
+      color: #8ef;
+    }
+
+    /* ── 설정 모달 ── */
+    #settings-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      padding: 1rem;
+    }
+    #settings-modal.open { display: flex; }
+    #settings-panel {
+      background: #111827;
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 1.2rem;
+      padding: 1.4rem;
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      color: #fff;
+    }
+    .st-title { font-size: 0.95rem; font-weight: bold; color: #e8f4ff; }
+    .st-label {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 0.3rem;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .st-label a { color: #4f8ef7; text-decoration: none; }
+    .st-row { display: flex; gap: 0.4rem; }
+    .st-input {
+      flex: 1;
+      padding: 0.48rem 0.72rem;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 0.6rem;
+      color: #fff;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .st-input:focus { border-color: rgba(79,142,247,0.6); }
+    .st-btn {
+      padding: 0.48rem 1rem;
+      border: none; border-radius: 0.6rem;
+      font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+    }
+    .st-btn-primary { background: #4f8ef7; color: #fff; }
+    .st-btn-secondary { background: rgba(255,255,255,0.1); color: #bbb; }
+    .st-hint { font-size: 0.68rem; color: rgba(255,255,255,0.4); min-height: 1em; }
+    .st-hint.ok { color: #6f9; }
+    .st-hint.err { color: #f88; }
+    #pdf-drop-zone {
+      border: 2px dashed rgba(79,142,247,0.35);
+      border-radius: 0.8rem;
+      padding: 0.9rem;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.45);
+      transition: all 0.2s;
+      user-select: none;
+    }
+    #pdf-drop-zone:hover, #pdf-drop-zone.drag-over {
+      border-color: rgba(79,142,247,0.75);
+      background: rgba(79,142,247,0.08);
+      color: #8af;
+    }
   </style>
 </head>
 <body>
@@ -272,8 +355,10 @@
   <div id="page-title">🤖 AI 튜터</div>
   <span class="top-badge" id="unit-label">1단원</span>
   <span class="top-badge" id="conc-badge">집중 100%</span>
+  <span class="top-badge" id="gemini-badge">Gemini</span>
   <button class="top-icon-btn" id="mic-mode-btn" onclick="toggleMic()" title="마이크 OFF — 클릭하여 켜기">🎤</button>
   <button class="top-icon-btn" id="mute-btn" onclick="toggleMute()">🔊</button>
+  <button class="top-icon-btn" id="settings-btn" onclick="openSettings()" title="AI 튜터 설정">⚙️</button>
   <button onclick="SessionManager.logout()" style="
     background:rgba(255,255,255,0.10);color:#888;
     border:1px solid rgba(255,255,255,0.14);border-radius:2rem;
@@ -323,6 +408,43 @@
   <div id="char-fallback">🪖</div>
 </div>
 
+<!-- 설정 모달 -->
+<div id="settings-modal">
+  <div id="settings-panel">
+    <div class="st-title">⚙️ AI 튜터 설정</div>
+
+    <div>
+      <div class="st-label">
+        Gemini API 키
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">무료 발급 →</a>
+      </div>
+      <div class="st-row">
+        <input type="password" id="api-key-input" class="st-input" placeholder="AIzaSy..." autocomplete="off">
+        <button class="st-btn st-btn-primary" onclick="saveApiKey()">저장</button>
+      </div>
+      <div id="api-key-hint" class="st-hint"></div>
+    </div>
+
+    <div>
+      <div class="st-label">교재 PDF 업로드 <span style="color:rgba(255,255,255,0.3)">(선택 — PDF 있으면 교재 기반 답변)</span></div>
+      <div id="pdf-drop-zone"
+           onclick="document.getElementById('pdf-file-input').click()"
+           ondragover="onPdfDragOver(event)"
+           ondrop="onPdfDrop(event)"
+           ondragleave="onPdfDragLeave(event)">
+        📄 PDF를 드래그하거나 클릭하여 업로드
+      </div>
+      <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none" onchange="handlePdfFile(this.files[0])">
+      <div id="pdf-hint" class="st-hint ok"></div>
+    </div>
+
+    <div class="st-row" style="justify-content:flex-end;gap:0.5rem">
+      <button class="st-btn st-btn-secondary" onclick="removePdf()">PDF 제거</button>
+      <button class="st-btn st-btn-primary" onclick="closeSettings()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 의존 스크립트 -->
 <script src="../js/config.js"></script>
 <script src="../js/session-manager.js"></script>
@@ -335,6 +457,8 @@
 // ══════════════════════════════════════════════
 let session       = null;
 let isClassMode   = false;
+let pdfBase64     = null;
+let pdfName       = null;
 let isMuted       = false;
 let micOn         = false;  // 마이크 OFF로 시작, 명시적으로 켜야 함
 let recognition   = null;
@@ -396,6 +520,9 @@ SessionManager.requireSession(async s => {
   loadCurriculum();
   updateMicBtn();
 
+  // Gemini 배지 초기화
+  updateGeminiBadge();
+
   // 인사
   const days = SessionManager.getDaysSinceLastAccess();
   setTimeout(() => {
@@ -404,6 +531,13 @@ SessionManager.requireSession(async s => {
             `저번에 ${s.currentUnit || 1}단원까지 하셨는데, 핵심만 30초 복습하고 시작할까요?`);
     } else {
       greet(`안녕하세요, ${s.name}님! 무엇이든 궁금한 것을 물어보세요 😊`);
+    }
+    // API 키 없으면 설정 안내
+    if (!localStorage.getItem('gemini_api_key')) {
+      setTimeout(() => {
+        const hint = '⚙️ 오른쪽 위 설정 버튼에서 Gemini API 키를 입력하면 진짜 AI로 대화할 수 있어요!';
+        addMessage('tutor', hint);
+      }, 1800);
     }
   }, 700);
 
@@ -645,22 +779,52 @@ async function handleUserInput(text) {
   }
 }
 
+async function callGemini(query) {
+  const apiKey = localStorage.getItem('gemini_api_key');
+  if (!apiKey) return null;
+
+  const parts = [];
+  if (pdfBase64) {
+    parts.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
+    parts.push({ text: `위 교재 내용을 참고하여 다음 질문에 한국어로 답변해주세요: ${query}` });
+  } else {
+    parts.push({ text: query });
+  }
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: '당신은 건설현장 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. 친근하고 명확하게 한국어로, 짧고 핵심만 답변하세요. 답변은 2~4문장으로 간결하게 해주세요.' }]
+        },
+        contents: [{ role: 'user', parts }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Gemini API 오류');
+  }
+
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+}
+
 async function getAiResponse(query) {
-  // 1. Gemini Nano
-  if (window.ai?.languageModel) {
-    try {
-      const ai = await window.ai.languageModel.create({
-        systemPrompt:
-          '당신은 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. ' +
-          '친근하고 명확하게, 짧고 핵심만 답변하세요. 모르는 내용은 교재를 확인하라고 안내하세요.'
-      });
-      const res = await Promise.race([
-        ai.prompt(query),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))
-      ]);
-      ai.destroy();
-      return res;
-    } catch {}
+  // 1. Gemini 2.0 Flash
+  try {
+    const geminiRes = await callGemini(query);
+    if (geminiRes) return geminiRes;
+  } catch (e) {
+    if (e.message?.includes('API_KEY_INVALID') || e.message?.includes('400')) {
+      return 'Gemini API 키가 올바르지 않습니다. 오른쪽 위 ⚙️ 설정에서 키를 확인해주세요.';
+    }
+    console.warn('[Gemini]', e.message);
   }
 
   // 2. 키워드 매칭 fallback
@@ -914,6 +1078,90 @@ function enableAITutor() {
       speak(msg);
     }, 800);
   }
+}
+
+// ══════════════════════════════════════════════
+//  설정 모달 (Gemini API 키 + PDF 업로드)
+// ══════════════════════════════════════════════
+function openSettings() {
+  const modal = document.getElementById('settings-modal');
+  modal.classList.add('open');
+  const saved = localStorage.getItem('gemini_api_key') || '';
+  document.getElementById('api-key-input').value = saved;
+  refreshApiKeyHint();
+  refreshPdfHint();
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function saveApiKey() {
+  const val = document.getElementById('api-key-input').value.trim();
+  if (val) {
+    localStorage.setItem('gemini_api_key', val);
+  } else {
+    localStorage.removeItem('gemini_api_key');
+  }
+  refreshApiKeyHint();
+  updateGeminiBadge();
+}
+
+function refreshApiKeyHint() {
+  const key = localStorage.getItem('gemini_api_key');
+  const el  = document.getElementById('api-key-hint');
+  el.className = 'st-hint' + (key ? ' ok' : '');
+  el.textContent = key ? `✓ 키 저장됨 (${key.slice(0, 8)}...)` : '키가 없으면 키워드 매칭으로만 동작합니다.';
+}
+
+function updateGeminiBadge() {
+  const badge = document.getElementById('gemini-badge');
+  badge.style.display = localStorage.getItem('gemini_api_key') ? 'inline' : 'none';
+}
+
+function handlePdfFile(file) {
+  if (!file || file.type !== 'application/pdf') return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pdfBase64 = e.target.result.split(',')[1];
+    pdfName   = file.name;
+    refreshPdfHint();
+  };
+  reader.readAsDataURL(file);
+}
+
+function refreshPdfHint() {
+  const el = document.getElementById('pdf-hint');
+  if (pdfName) {
+    el.className = 'st-hint ok';
+    el.textContent = `✓ ${pdfName} 업로드됨`;
+    document.getElementById('pdf-drop-zone').textContent = `📄 ${pdfName}`;
+  } else {
+    el.className = 'st-hint';
+    el.textContent = '';
+    document.getElementById('pdf-drop-zone').textContent = '📄 PDF를 드래그하거나 클릭하여 업로드';
+  }
+}
+
+function removePdf() {
+  pdfBase64 = null;
+  pdfName   = null;
+  document.getElementById('pdf-file-input').value = '';
+  refreshPdfHint();
+}
+
+function onPdfDragOver(e) {
+  e.preventDefault();
+  document.getElementById('pdf-drop-zone').classList.add('drag-over');
+}
+function onPdfDragLeave() {
+  document.getElementById('pdf-drop-zone').classList.remove('drag-over');
+}
+function onPdfDrop(e) {
+  e.preventDefault();
+  document.getElementById('pdf-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handlePdfFile(file);
 }
 
 // ══════════════════════════════════════════════

@@ -1,14 +1,41 @@
-﻿// AI 개인교관 로직 - Gemini Nano (window.ai) + 키워드 매칭 fallback
+// AI 튜터 엔진 — Gemini 2.0 Flash API + 키워드 매칭 fallback
 const AiTutor = (() => {
   let speechSynthesis = window.speechSynthesis;
   let recognition = null;
   let isListening = false;
   let isSpeaking  = false;
-  let voiceEnabled = true; // 집체교육 중에는 false
+  let voiceEnabled = true;
   let onMessageCallback = null;
   let currentVoice = null;
 
-  // 키워드 매칭 응답 DB
+  const GEMINI_MODEL  = 'gemini-2.0-flash';
+  const GEMINI_SYSTEM = '당신은 건설현장 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. 친근하고 명확하게 한국어로, 짧고 핵심만 답변하세요. 답변은 2~4문장으로 간결하게 해주세요.';
+
+  async function callGemini(text) {
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) return null;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: GEMINI_SYSTEM }] },
+            contents: [{ role: 'user', parts: [{ text }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
+          })
+        }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 키워드 매칭 fallback DB
   const RESPONSES = [
     {
       keywords: ['신호수', '역할', '하는 일'],
@@ -69,7 +96,6 @@ const AiTutor = (() => {
   ];
 
   function init() {
-    // TTS 음성 초기화
     if (speechSynthesis) {
       function loadVoices() {
         const voices = speechSynthesis.getVoices();
@@ -81,7 +107,6 @@ const AiTutor = (() => {
       speechSynthesis.onvoiceschanged = loadVoices;
     }
 
-    // STT 초기화
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
@@ -93,7 +118,7 @@ const AiTutor = (() => {
         const text = e.results[0][0].transcript;
         handleInput(text);
       };
-      recognition.onerror = (e) => {
+      recognition.onerror = () => {
         isListening = false;
         if (onMessageCallback) onMessageCallback('stt-error', null);
       };
@@ -118,21 +143,9 @@ const AiTutor = (() => {
   }
 
   async function getResponse(text) {
-    // 1. Gemini Nano (window.ai) 시도
-    if (window.ai?.languageModel) {
-      try {
-        const session = await window.ai.languageModel.create({
-          systemPrompt: `당신은 건설현장 신호수 교육 AI 튜터입니다.
-짧고 명확하게 한국어로 답변하세요. 신호수 교육 관련 질문에만 답변합니다.
-답변은 2~3문장으로 간결하게 해주세요.`
-        });
-        const result = await session.prompt(text);
-        session.destroy();
-        return result;
-      } catch (e) {
-        // fallback
-      }
-    }
+    // 1. Gemini 2.0 Flash
+    const geminiReply = await callGemini(text);
+    if (geminiReply) return geminiReply;
 
     // 2. 키워드 매칭 fallback
     const lower = text.toLowerCase();
@@ -180,7 +193,6 @@ const AiTutor = (() => {
     }
   }
 
-  // 자동 개입 메시지들
   const INTERVENTIONS = {
     longStay: '이 부분에서 오래 머무르고 계시네요. 헷갈리는 부분이 있으신가요? 제가 설명해드릴까요?',
     frown: '뭔가 어려우신 것 같은데, 어떤 부분이 이해가 안 되시나요?',
