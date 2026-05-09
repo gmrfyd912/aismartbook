@@ -176,6 +176,16 @@
   SessionManager.requireSession(async (session) => {
     document.getElementById('sm-user-name').textContent = session.name;
     await FirebaseManager.init();
+
+    // 이 페이지에 도달했으면 현재 활성 퀴즈를 '처리됨'으로 표시 (배너 재등장 방지)
+    const qRef = FirebaseManager.ref('session/activeQuiz');
+    if (qRef) {
+      qRef.once('value').then(snap => {
+        const data = snap.val();
+        if (data?.timestamp) localStorage.setItem('handledQuizTs', String(data.timestamp));
+      }).catch(() => {});
+    }
+
     await startTest();
   });
 
