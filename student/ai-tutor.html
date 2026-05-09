@@ -221,32 +221,12 @@
       align-items: flex-end;
       pointer-events: none;
       animation: slideDown 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+      background: transparent !important;
+      background-color: transparent !important;
     }
     @keyframes slideDown {
       from { transform: translateY(-60px); opacity: 0; }
       to   { transform: translateY(0);     opacity: 1; }
-    }
-
-    /* 말풍선 — 캐릭터 좌측 하단 방향 꼬리 */
-    #speech-bubble {
-      display: none;
-      position: relative;
-      background: rgba(255,255,255,0.96);
-      color: #1a1a2e;
-      border-radius: 0.9rem 0.9rem 0.9rem 0;
-      padding: 0.55rem 0.72rem;
-      font-size: 0.75rem;
-      line-height: 1.45;
-      word-break: keep-all;
-      max-width: 90%;
-      margin-right: 0.5rem;
-      margin-bottom: 0.3rem;
-      box-shadow: 0 3px 14px rgba(0,0,0,0.35);
-      animation: bubblePop 0.22s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    @keyframes bubblePop {
-      from { transform: scale(0.75) translateY(-8px); opacity: 0; }
-      to   { transform: scale(1)    translateY(0);    opacity: 1; }
     }
 
     /* 캐릭터 이미지 */
@@ -257,12 +237,17 @@
       object-position: top center;
       user-select: none;
       -webkit-user-drag: none;
+      background: transparent !important;
+      background-color: transparent !important;
+      box-shadow: none !important;
+      border: none !important;
     }
     #char-fallback {
       font-size: 11vh;
       text-align: center;
       padding-top: 0.5rem;
       display: none;
+      background: transparent !important;
     }
 
     /* ── PTT 버튼 (버튼식 모드) ── */
@@ -372,9 +357,8 @@
 
 <!-- AI 캐릭터 (우측 상단) -->
 <div id="char-container">
-  <div id="speech-bubble"></div>
   <img id="char-img"
-    src="../assets/instructor_idle.png"
+    src="../assets/instructor_idle.png?v=2"
     alt="AI 교관"
     onerror="this.style.display='none';document.getElementById('char-fallback').style.display='block'">
   <div id="char-fallback">🪖</div>
@@ -405,7 +389,6 @@ let isSpeaking    = false;
 let talkInterval  = null;
 let currentVoice  = null;
 let frownStart    = null;
-let lastInput     = Date.now();
 let idleTimer     = null;
 let sessionStart  = Date.now();
 let curriculum    = null;
@@ -413,8 +396,18 @@ let messages      = [];      // {type, text}[]
 let cameraStream  = null;
 let lastConcSent  = 0;
 
-const charImg      = document.getElementById('char-img');
-const speechBubble = document.getElementById('speech-bubble');
+// ── 자동 개입 상태 ──
+let isInterventionActive  = false;
+let lastFrownIntervention = 0;
+let lastIdleIntervention  = 0;
+const PAGE_LOAD_TIME = Date.now();
+const IDLE_DELAY     = 60000;   // 60s 무입력 후 개입
+const IDLE_COOLDOWN  = 300000;  // 개입 후 5분 대기
+const FROWN_DURATION = 5000;    // 5s 연속 찌푸림
+const FROWN_COOLDOWN = 600000;  // 개입 후 10분 대기
+const GRACE_PERIOD   = 30000;   // 페이지 로드 후 30s 유예
+
+const charImg = document.getElementById('char-img');
 
 // ══════════════════════════════════════════════
 //  Boot
@@ -509,9 +502,9 @@ function toggleMute() {
 //  캐릭터 애니메이션
 // ══════════════════════════════════════════════
 const CHAR = {
-  idle: '../assets/instructor_idle.png',
-  talk: '../assets/instructor_talk.png',
-  wave: '../assets/instructor_wave.png',
+  idle: '../assets/instructor_idle.png?v=2',
+  talk: '../assets/instructor_talk.png?v=2',
+  wave: '../assets/instructor_wave.png?v=2',
 };
 
 function setChar(state) {
@@ -536,21 +529,8 @@ function waveAnim(cb) {
   setTimeout(() => { setChar('idle'); if (cb) cb(); }, 2000);
 }
 
-function showBubble(text) {
-  speechBubble.textContent = text;
-  speechBubble.style.display = 'block';
-  // Re-trigger animation
-  speechBubble.style.animation = 'none';
-  requestAnimationFrame(() => {
-    speechBubble.style.animation = 'bubblePop 0.22s cubic-bezier(0.34,1.56,0.64,1)';
-  });
-  clearTimeout(speechBubble._t);
-  speechBubble._t = setTimeout(() => { speechBubble.style.display = 'none'; }, 6000);
-}
-
 function greet(text) {
   waveAnim();
-  showBubble(text);
   addMessage('tutor', text);
   speak(text);
 }
@@ -660,8 +640,6 @@ function addMessage(type, text, isTyping = false) {
   if (!isTyping) {
     messages.push({ type, text });
     if (messages.length > MAX_MSGS) messages.shift();
-    lastInput = Date.now();
-    resetIdleTimer();
   }
   renderMessages(isTyping);
 }
@@ -696,8 +674,8 @@ function askQuick(text) { handleUserInput(text); }
 //  AI 답변
 // ══════════════════════════════════════════════
 async function handleUserInput(text) {
+  onUserActivity();           // 개입 플래그 해제 + 타이머 리셋
   addMessage('user', text);
-  showBubble('...');
 
   // VAD 모드면 처리 중 인식 중단
   if (micMode === 'vad') stopRecognition();
@@ -708,7 +686,6 @@ async function handleUserInput(text) {
   const answer = await getAiResponse(text);
 
   addMessage('tutor', answer);
-  showBubble(answer);
   speak(answer);
 
   // 데이터 저장
@@ -866,19 +843,7 @@ function onFaceResults(res) {
   const browToNose = ((lb.y + rb.y) / 2) - nose.y;   // 눈썹-코 수직 거리
   const frowning   = browDist < 0.09 && browToNose < 0.045;
 
-  if (frowning) {
-    if (!frownStart) frownStart = Date.now();
-    else if (!isClassMode && Date.now() - frownStart > 3000) {
-      frownStart = null;
-      const msg = '뭔가 헷갈리시는 것 같은데, 어떤 부분이 어려우세요?';
-      waveAnim();
-      addMessage('tutor', msg);
-      showBubble(msg);
-      speak(msg);
-    }
-  } else {
-    frownStart = null;
-  }
+  checkFrownIntervention(frowning);
 
   // 집중도 점수 (졸음: 눈 꺼짐 추정 - 눈 높이로 간이 측정)
   const leftEyeH  = Math.abs((lms[159]?.y || 0) - (lms[145]?.y || 0));
@@ -902,19 +867,57 @@ function onFaceResults(res) {
 }
 
 // ══════════════════════════════════════════════
-//  자동 개입 타이머 (30초 무입력)
+//  자동 개입 — 뮤텍스, 쿨다운, 유예 기간 포함
 // ══════════════════════════════════════════════
+function canIntervene() {
+  if (isClassMode) return false;                               // 집체교육 중 차단
+  if (isInterventionActive) return false;                      // 이미 개입 중 차단
+  if (Date.now() - PAGE_LOAD_TIME < GRACE_PERIOD) return false; // 초기 30s 유예
+  return true;
+}
+
+// 교육생 입력 시 호출 — 개입 플래그 해제 + 60s 타이머 리셋
+function onUserActivity() {
+  isInterventionActive = false;
+  resetIdleTimer();
+}
+
 function resetIdleTimer() {
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => {
-    if (isClassMode || isSpeaking) return;
-    const msg = '혹시 어려운 부분 있으신가요? 편하게 물어보세요! 😊';
-    waveAnim();
-    addMessage('tutor', msg);
-    showBubble(msg);
-    speak(msg);
-    resetIdleTimer();
-  }, 30000);
+  idleTimer = setTimeout(triggerIdleIntervention, IDLE_DELAY);
+}
+
+function triggerIdleIntervention() {
+  if (!canIntervene()) return;
+  if (Date.now() - lastIdleIntervention < IDLE_COOLDOWN) return; // 5분 쿨다운
+  isInterventionActive = true;
+  lastIdleIntervention = Date.now();
+  const msg = '혹시 어려운 부분 있으신가요? 편하게 물어보세요! 😊';
+  waveAnim();
+  addMessage('tutor', msg);
+  speak(msg);
+  // 타이머 재시작 없음 — 교육생이 응답할 때 onUserActivity()가 재시작
+}
+
+function checkFrownIntervention(frowning) {
+  const now = Date.now();
+  if (frowning) {
+    if (!frownStart) {
+      frownStart = now;
+    } else if (now - frownStart >= FROWN_DURATION) {  // 5s 연속
+      if (!canIntervene()) return;
+      if (now - lastFrownIntervention < FROWN_COOLDOWN) return; // 10분 쿨다운
+      frownStart = null;
+      isInterventionActive  = true;
+      lastFrownIntervention = now;
+      const msg = '뭔가 헷갈리시는 것 같은데, 어떤 부분이 어려우세요?';
+      waveAnim();
+      addMessage('tutor', msg);
+      speak(msg);
+    }
+  } else {
+    frownStart = null;
+  }
 }
 
 // ══════════════════════════════════════════════
