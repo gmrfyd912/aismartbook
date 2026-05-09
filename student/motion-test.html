@@ -100,6 +100,10 @@
 
 <!-- 설정 화면 -->
 <div id="config-screen" class="screen">
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.6rem;width:100%;max-width:340px">
+    <span id="sm-user-name" style="font-size:0.72rem;color:#555"></span>
+    <button class="sm-logout-btn" onclick="SessionManager.logout()">로그아웃</button>
+  </div>
   <div style="font-size:2.2rem">📋</div>
   <h1>동작 테스트</h1>
   <p>피드백 없이 동작을 측정하고<br>채점 리포트를 생성합니다</p>
@@ -211,6 +215,7 @@
   const offscreenCtx = offscreen.getContext('2d');
 
   SessionManager.requireSession(async (session) => {
+    document.getElementById('sm-user-name').textContent = session.name;
     await FirebaseManager.init();
     try {
       const [vision, data] = await Promise.all([

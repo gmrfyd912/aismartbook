@@ -85,6 +85,8 @@
   <div class="sel-header">
     <a href="./home.html">← 홈</a>
     <h1>동작 연습</h1>
+    <span id="sm-user-name" style="font-size:0.72rem;color:#555;flex-shrink:0"></span>
+    <button class="sm-logout-btn" onclick="SessionManager.logout()">로그아웃</button>
   </div>
   <p style="font-size:0.78rem;color:#888;padding:0 1rem 0.8rem">동작을 선택하고 AI 교관의 피드백을 받으세요</p>
   <div id="pose-grid"></div>
@@ -171,6 +173,7 @@
   const offscreenCtx = offscreen.getContext('2d');
 
   SessionManager.requireSession(async (session) => {
+    document.getElementById('sm-user-name').textContent = session.name;
     AiTutor.init();
     AiTutor.setVoiceEnabled(true);
 

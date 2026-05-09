@@ -18,6 +18,13 @@
       background: rgba(79,142,247,0.18); color: #4f8ef7;
       padding: 0.3rem 0.75rem; border-radius: 2rem; font-size: 0.78rem;
     }
+    .header .logout-btn {
+      background: transparent; color: #555;
+      border: 1px solid #2a2a3e; border-radius: 2rem;
+      padding: 0.22rem 0.65rem; font-size: 0.7rem;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .header .logout-btn:active { color: #e74c3c; border-color: #e74c3c; }
 
     .welcome-card {
       margin: 0 1rem 1.2rem;
@@ -100,6 +107,7 @@
     신호수 AI 교재
   </h1>
   <div class="student-badge" id="student-badge">로딩중...</div>
+  <button class="logout-btn" onclick="SessionManager.logout()">로그아웃</button>
 </div>
 
 <div class="welcome-card" id="welcome-card">

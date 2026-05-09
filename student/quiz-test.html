@@ -96,6 +96,8 @@
   <div class="header">
     <a href="./home.html">← 홈</a>
     <h1>⏱️ 실력 테스트</h1>
+    <span id="sm-user-name" style="font-size:0.72rem;color:#555;flex-shrink:0"></span>
+    <button class="sm-logout-btn" onclick="SessionManager.logout()">로그아웃</button>
   </div>
 
   <div class="timer-bar">
@@ -168,6 +170,7 @@
   let timerMax = TIME_PER_Q;
 
   SessionManager.requireSession(async (session) => {
+    document.getElementById('sm-user-name').textContent = session.name;
     await FirebaseManager.init();
     await startTest();
   });

@@ -97,6 +97,8 @@
   <div class="header">
     <a href="./home.html">← 홈</a>
     <h1>학습 퀴즈</h1>
+    <span id="sm-user-name" style="font-size:0.72rem;color:#555;flex-shrink:0"></span>
+    <button class="sm-logout-btn" onclick="SessionManager.logout()">로그아웃</button>
   </div>
 
   <div class="progress-wrap">
@@ -158,6 +160,7 @@
   let tutorTimeout = null;
 
   SessionManager.requireSession(async (session) => {
+    document.getElementById('sm-user-name').textContent = session.name;
     AiTutor.init();
     AiTutor.setVoiceEnabled(false);
 
