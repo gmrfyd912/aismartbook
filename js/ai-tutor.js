@@ -8,15 +8,14 @@ const AiTutor = (() => {
   let onMessageCallback = null;
   let currentVoice = null;
 
+  const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
   const GEMINI_MODEL  = 'gemini-2.0-flash';
   const GEMINI_SYSTEM = '당신은 건설현장 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. 친근하고 명확하게 한국어로, 짧고 핵심만 답변하세요. 답변은 2~4문장으로 간결하게 해주세요.';
 
   async function callGemini(text) {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey) return null;
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
