@@ -279,8 +279,22 @@
     flex-shrink:0;backdrop-filter:blur(6px);white-space:nowrap;">로그아웃</button>
 </div>
 
-<!-- 집체교육 배너 -->
-<div id="class-banner">🏫 집체교육 중 — 음성 자동 음소거</div>
+<!-- 집체교육 배너 (hidden; overlay로 대체) -->
+<div id="class-banner" style="display:none">🏫 집체교육 중 — 음성 자동 음소거</div>
+
+<!-- 수업중 AI교관 비활성화 오버레이 -->
+<div id="class-overlay" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.84); z-index:50;
+  flex-direction:column; align-items:center; justify-content:center;
+  backdrop-filter:blur(8px); text-align:center; padding:2rem;
+">
+  <div style="font-size:3.5rem;margin-bottom:1rem">🏫</div>
+  <div style="font-size:1.1rem;font-weight:bold;margin-bottom:0.6rem">수업 진행 중입니다</div>
+  <div style="font-size:0.85rem;color:#aaa;line-height:1.65;max-width:280px">
+    AI 교관은 수업 종료 후 이용 가능합니다.
+  </div>
+</div>
 
 <!-- 채팅창 (좌측 하단) -->
 <div id="chat-window">
@@ -337,6 +351,8 @@ let concScore     = 80;
 let concSmoothed  = 80;
 let lowConcStart  = null;
 
+let wasClassMode = false; // 수업종료 후 재활성화 메시지용
+
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
 let lastFrownIntervention = 0;
@@ -363,10 +379,18 @@ SessionManager.requireSession(async s => {
   await startCamera();
 
   await FirebaseManager.init();
-  FirebaseManager.watchInstructorMode(active => {
-    isClassMode = active;
-    document.getElementById('class-banner').style.display = active ? 'block' : 'none';
-    if (active && isSpeaking) stopSpeak();
+
+  // 수업 모드 실시간 감지
+  FirebaseManager.watchClassMode(active => {
+    if (active) disableAITutor();
+    else        enableAITutor();
+  });
+
+  // heartbeat 감시 — 교사앱이 5분간 heartbeat 없으면 자동 활성화
+  FirebaseManager.watchHeartbeat(lastBeat => {
+    if (lastBeat && Date.now() - lastBeat > 300000 && isClassMode) {
+      enableAITutor();
+    }
   });
 
   loadCurriculum();
@@ -882,6 +906,38 @@ function checkFrownIntervention(frowning) {
     }
   } else {
     frownStart = null;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  수업중 AI교관 비활성화 / 활성화
+// ══════════════════════════════════════════════
+function disableAITutor() {
+  if (isClassMode) return;
+  isClassMode  = true;
+  wasClassMode = true;
+  stopRecognition();
+  if (isSpeaking) stopSpeak();
+  document.getElementById('chat-input').disabled = true;
+  document.getElementById('send-btn').disabled   = true;
+  document.getElementById('class-overlay').style.display = 'flex';
+}
+
+function enableAITutor() {
+  if (!isClassMode && !wasClassMode) return; // 이미 활성화 상태
+  const wasDis = wasClassMode;
+  isClassMode  = false;
+  wasClassMode = false;
+  document.getElementById('chat-input').disabled = false;
+  document.getElementById('send-btn').disabled   = false;
+  document.getElementById('class-overlay').style.display = 'none';
+  if (micOn && !isRecognizing) startRecognition();
+  if (wasDis) {
+    setTimeout(() => {
+      const msg = '수업이 종료됐어요! 복습이 필요한 부분 있으면 물어보세요 😊';
+      addMessage('tutor', msg);
+      speak(msg);
+    }, 800);
   }
 }
 

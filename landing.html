@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>신호수 AI 스마트 교재</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f;
+      color: #fff;
+      font-family: sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.10;
+      pointer-events: none;
+    }
+
+    .logo-section { text-align: center; margin-bottom: 2.8rem; }
+    .logo-icon    { font-size: 4rem; margin-bottom: 0.7rem; display: block; }
+    .logo-title   { font-size: 1.55rem; font-weight: bold; margin-bottom: 0.3rem; }
+    .logo-sub     { font-size: 0.82rem; color: #555; }
+
+    .role-buttons { display: flex; flex-direction: column; gap: 0.9rem; width: 100%; max-width: 320px; }
+
+    .role-btn {
+      display: flex; align-items: center; gap: 1.1rem;
+      padding: 1.25rem 1.4rem;
+      border-radius: 1.2rem; border: 1.5px solid;
+      cursor: pointer; background: transparent; color: #fff;
+      font-family: sans-serif; text-align: left;
+      transition: transform 0.1s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .role-btn:active { transform: scale(0.97); }
+    .role-btn.student { border-color: rgba(79,142,247,0.5); background: rgba(79,142,247,0.07); }
+    .role-btn.student:hover { background: rgba(79,142,247,0.14); }
+    .role-btn.teacher { border-color: rgba(231,76,60,0.5); background: rgba(231,76,60,0.07); }
+    .role-btn.teacher:hover { background: rgba(231,76,60,0.14); }
+    .rb-icon  { font-size: 2.3rem; flex-shrink: 0; }
+    .rb-text  { flex: 1; }
+    .rb-title { font-size: 1.05rem; font-weight: bold; margin-bottom: 0.2rem; }
+    .rb-desc  { font-size: 0.72rem; color: #888; }
+    .rb-arrow { font-size: 1.3rem; color: #444; flex-shrink: 0; }
+
+    /* 모달 */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.90);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal-box {
+      background: #1a1a2e;
+      border-radius: 1.2rem;
+      padding: 1.8rem;
+      width: 100%; max-width: 340px;
+      display: flex; flex-direction: column; gap: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.09);
+      margin: auto;
+    }
+    .modal-icon { font-size: 2.4rem; text-align: center; display: block; }
+    .modal-title { font-size: 1.1rem; font-weight: bold; text-align: center; }
+
+    .inp-group { display: flex; flex-direction: column; gap: 0.65rem; }
+    .inp-label { font-size: 0.76rem; color: #888; display: block; margin-bottom: 0.25rem; }
+    .inp-field {
+      width: 100%; padding: 0.65rem 0.85rem;
+      background: #111; border: 1px solid #252535;
+      border-radius: 0.6rem; color: #fff;
+      font-size: 0.98rem; outline: none; font-family: sans-serif;
+      transition: border-color 0.15s;
+    }
+    .inp-field:focus { border-color: #4f8ef7; }
+
+    .recent-section { display: flex; flex-direction: column; gap: 0.4rem; }
+    .recent-hd { font-size: 0.72rem; color: #555; margin-bottom: 0.15rem; }
+    .recent-item {
+      display: flex; align-items: center; gap: 0.7rem;
+      background: #111; border: 1px solid #252535;
+      border-radius: 0.75rem; padding: 0.52rem 0.8rem;
+      color: #fff; cursor: pointer; text-align: left;
+      font-family: sans-serif; width: 100%;
+      transition: border-color 0.12s;
+    }
+    .recent-item:hover { border-color: #4f8ef7; }
+    .recent-avatar {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(79,142,247,0.2); color: #4f8ef7;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 0.85rem;
+    }
+    .recent-name { font-size: 0.86rem; font-weight: bold; }
+    .recent-meta { font-size: 0.68rem; color: #555; }
+    .divider {
+      display: flex; align-items: center; gap: 0.5rem;
+      color: #2a2a3e; font-size: 0.7rem; margin: 0.2rem 0;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #1e1e2e; }
+
+    .modal-error { color: #e55; font-size: 0.78rem; min-height: 1em; text-align: center; }
+
+    .btn-primary {
+      width: 100%; padding: 0.75rem;
+      border: none; border-radius: 0.8rem;
+      font-size: 0.98rem; font-weight: bold;
+      cursor: pointer; font-family: sans-serif;
+    }
+    .btn-blue { background: #4f8ef7; color: #fff; }
+    .btn-red  { background: #e74c3c; color: #fff; }
+    .btn-cancel {
+      width: 100%; padding: 0.5rem;
+      background: transparent; border: none;
+      color: #555; font-size: 0.82rem;
+      cursor: pointer; font-family: sans-serif;
+    }
+
+    .version { margin-top: 2.5rem; font-size: 0.68rem; color: #2a2a3e; }
+  </style>
+</head>
+<body>
+
+<div class="bg-orb" style="width:320px;height:320px;background:#4f8ef7;top:-120px;left:-120px;"></div>
+<div class="bg-orb" style="width:260px;height:260px;background:#e74c3c;bottom:-90px;right:-90px;"></div>
+
+<div class="logo-section">
+  <span class="logo-icon">🪖</span>
+  <div class="logo-title">신호수 AI 스마트 교재</div>
+  <div class="logo-sub">교육 역할을 선택해주세요</div>
+</div>
+
+<div class="role-buttons">
+  <button class="role-btn student" onclick="openStudentModal()">
+    <div class="rb-icon">👨‍🎓</div>
+    <div class="rb-text">
+      <div class="rb-title">교육생</div>
+      <div class="rb-desc">AI 교관 · 학습 퀴즈 · 동작 연습</div>
+    </div>
+    <div class="rb-arrow">›</div>
+  </button>
+  <button class="role-btn teacher" onclick="openTeacherModal()">
+    <div class="rb-icon">👨‍🏫</div>
+    <div class="rb-text">
+      <div class="rb-title">교사</div>
+      <div class="rb-desc">수업 관리 · 퀴즈 발사 · 집중도 모니터링</div>
+    </div>
+    <div class="rb-arrow">›</div>
+  </button>
+</div>
+
+<div class="version">신호수 AI 교재 v1.0</div>
+
+<!-- 교육생 로그인 모달 -->
+<div class="modal-backdrop" id="student-modal">
+  <div class="modal-box">
+    <span class="modal-icon">👨‍🎓</span>
+    <div class="modal-title">교육생 로그인</div>
+
+    <div class="recent-section" id="recent-section" style="display:none">
+      <div class="recent-hd">이전 계정으로 계속하기</div>
+      <div id="recent-list"></div>
+      <div class="divider">또는 새 계정으로</div>
+    </div>
+
+    <div class="inp-group">
+      <div>
+        <label class="inp-label">이름</label>
+        <input class="inp-field" id="s-name" type="text" placeholder="홍길동" autocomplete="off">
+      </div>
+      <div>
+        <label class="inp-label">교육생 번호</label>
+        <input class="inp-field" id="s-number" type="text" placeholder="001" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-error" id="s-error"></div>
+    <button class="btn-primary btn-blue" onclick="submitStudent()">입장하기</button>
+    <button class="btn-cancel" onclick="closeModals()">취소</button>
+  </div>
+</div>
+
+<!-- 교사 로그인 모달 -->
+<div class="modal-backdrop" id="teacher-modal">
+  <div class="modal-box">
+    <span class="modal-icon">👨‍🏫</span>
+    <div class="modal-title">교사 로그인</div>
+    <div class="inp-group">
+      <div>
+        <label class="inp-label">이름</label>
+        <input class="inp-field" id="t-name" type="text" placeholder="이재문" autocomplete="off">
+      </div>
+      <div>
+        <label class="inp-label">비밀번호</label>
+        <input class="inp-field" id="t-pw" type="password" placeholder="••••">
+      </div>
+    </div>
+    <div class="modal-error" id="t-error"></div>
+    <button class="btn-primary btn-red" onclick="submitTeacher()">로그인</button>
+    <button class="btn-cancel" onclick="closeModals()">취소</button>
+  </div>
+</div>
+
+<script src="./js/session-manager.js"></script>
+<script>
+  // 이미 로그인된 경우 즉시 리다이렉트
+  if (SessionManager.isLoggedIn()) location.replace('./student/home.html');
+  const _iSess = (() => { try { return JSON.parse(localStorage.getItem('instructorSession')); } catch { return null; } })();
+  if (_iSess?.isInstructor) location.replace('./instructor/dashboard.html');
+
+  // ── 교육생 모달 ──
+  function openStudentModal() {
+    const recent = SessionManager.getRecentUsers(3);
+    const sec    = document.getElementById('recent-section');
+    const list   = document.getElementById('recent-list');
+
+    if (recent.length > 0) {
+      sec.style.display = 'flex';
+      sec.style.flexDirection = 'column';
+      sec.style.gap = '0.4rem';
+      list.innerHTML = recent.map(u => `
+        <button class="recent-item" onclick="quickLogin('${escAttr(u.studentId)}')">
+          <div class="recent-avatar">${escHtml(u.name.slice(0,1))}</div>
+          <div style="flex:1">
+            <div class="recent-name">${escHtml(u.name)}</div>
+            <div class="recent-meta">${escHtml(u.number)}번 · ${u.lastAccess || ''}</div>
+          </div>
+          <div style="color:#4f8ef7;flex-shrink:0">›</div>
+        </button>
+      `).join('');
+    } else {
+      sec.style.display = 'none';
+    }
+    document.getElementById('student-modal').classList.add('open');
+    setTimeout(() => document.getElementById('s-name').focus(), 120);
+  }
+
+  function quickLogin(userId) {
+    if (SessionManager.loginById(userId)) location.href = './student/home.html';
+  }
+
+  function submitStudent() {
+    const name   = document.getElementById('s-name').value.trim();
+    const number = document.getElementById('s-number').value.trim();
+    const err    = document.getElementById('s-error');
+    if (!name)   { err.textContent = '이름을 입력해주세요'; return; }
+    if (!number) { err.textContent = '교육생 번호를 입력해주세요'; return; }
+    err.textContent = '';
+    SessionManager.login(name, number, () => { location.href = './student/home.html'; });
+  }
+
+  // ── 교사 모달 ──
+  function openTeacherModal() {
+    document.getElementById('teacher-modal').classList.add('open');
+    setTimeout(() => document.getElementById('t-name').focus(), 120);
+  }
+
+  function submitTeacher() {
+    const name = document.getElementById('t-name').value.trim();
+    const pw   = document.getElementById('t-pw').value;
+    const err  = document.getElementById('t-error');
+    if (!name)       { err.textContent = '이름을 입력해주세요'; return; }
+    if (pw !== '1234') { err.textContent = '비밀번호가 올바르지 않습니다'; return; }
+    err.textContent = '';
+    localStorage.setItem('instructorSession', JSON.stringify({
+      name,
+      loginTime: new Date().toISOString(),
+      isInstructor: true
+    }));
+    location.href = './instructor/dashboard.html';
+  }
+
+  // ── 공통 ──
+  function closeModals() {
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open'));
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function escAttr(s) {
+    return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+  }
+
+  // 배경 클릭으로 닫기
+  document.querySelectorAll('.modal-backdrop').forEach(m =>
+    m.addEventListener('click', e => { if (e.target === m) closeModals(); })
+  );
+
+  // Enter 키
+  ['s-name','s-number'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') submitStudent(); })
+  );
+  ['t-name','t-pw'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') submitTeacher(); })
+  );
+</script>
+</body>
+</html>

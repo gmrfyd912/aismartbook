@@ -34,18 +34,49 @@ const FirebaseManager = (() => {
     return db.ref(path);
   }
 
-  // 강사 모드 상태 (집체교육 모드 여부)
+  // 집체교육 classMode (정식 경로: session/classMode)
   function watchInstructorMode(callback) {
-    const r = ref('session/instructorMode');
+    const r = ref('session/classMode');
     if (!r) { callback(false); return () => {}; }
     r.on('value', snap => callback(!!snap.val()));
     return () => r.off('value');
   }
 
+  function watchClassMode(callback) {
+    return watchInstructorMode(callback);
+  }
+
   function setInstructorMode(active) {
-    const r = ref('session/instructorMode');
+    if (!db) return Promise.resolve();
+    return db.ref().update({ 'session/classMode': active, 'session/instructorMode': active });
+  }
+
+  // 수업 세션 일괄 업데이트 (대시보드용)
+  function setClassSession(active) {
+    if (!db) return Promise.resolve();
+    const update = { 'session/classMode': active, 'session/instructorMode': active };
+    if (active) {
+      update['session/instructorCameraActive'] = true;
+      update['session/classStartTime']         = Date.now();
+      update['session/instructorHeartbeat']    = Date.now();
+    } else {
+      update['session/instructorCameraActive'] = false;
+    }
+    return db.ref().update(update);
+  }
+
+  // 강사 heartbeat
+  function setHeartbeat() {
+    const r = ref('session/instructorHeartbeat');
     if (!r) return Promise.resolve();
-    return r.set(active);
+    return r.set(Date.now());
+  }
+
+  function watchHeartbeat(callback) {
+    const r = ref('session/instructorHeartbeat');
+    if (!r) { callback(null); return () => {}; }
+    r.on('value', snap => callback(snap.val()));
+    return () => r.off('value');
   }
 
   // 퀴즈 발사
@@ -116,7 +147,9 @@ const FirebaseManager = (() => {
   }
 
   return {
-    init, ref, watchInstructorMode, setInstructorMode,
+    init, ref,
+    watchInstructorMode, setInstructorMode,
+    watchClassMode, setClassSession, setHeartbeat, watchHeartbeat,
     watchActiveQuiz, launchQuiz, clearQuiz,
     saveStudentData, watchStudents,
     saveQuizResult, watchQuizResults,

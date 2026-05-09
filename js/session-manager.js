@@ -54,7 +54,7 @@ const SessionManager = (() => {
     const store = _store();
     store.currentUser = null;
     _saveStore(store);
-    location.href = './home.html';
+    location.href = _landingUrl();
   }
 
   function isLoggedIn() {
@@ -102,14 +102,43 @@ const SessionManager = (() => {
       .slice(0, max);
   }
 
-  // ── Public: 세션 필요 시 콜백, 없으면 로그인 모달 ────────
+  // ── 내부: landing.html 경로 계산 ─────────────────────────
+  function _landingUrl() {
+    try {
+      if (/\/(student|instructor)\//.test(window.location.pathname)) return '../landing.html';
+    } catch {}
+    return './landing.html';
+  }
+
+  // ── Public: 이름+번호로 로그인 ────────────────────────────
+  function login(name, number, callback) {
+    _login(name, number, callback);
+  }
+
+  // ── Public: ID로 바로 로그인 (이전 계정 클릭) ─────────────
+  function loginById(userId) {
+    const store = _store();
+    if (!store.users?.[userId]) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    store.users[userId].lastAccess = today;
+    store.currentUser = userId;
+    _saveStore(store);
+    return true;
+  }
+
+  // ── Public: 최근 계정 목록 ────────────────────────────────
+  function getRecentUsers(max = 3) {
+    return _getRecentUsers(max);
+  }
+
+  // ── Public: 세션 필요 시 콜백, 없으면 landing으로 리다이렉트 ─
   function requireSession(callback) {
     if (isLoggedIn()) {
       save({});          // lastAccess 갱신
       callback(get());
       return;
     }
-    showLoginModal(callback);
+    location.href = _landingUrl();
   }
 
   // ── 로그인 모달 ───────────────────────────────────────────
@@ -256,5 +285,5 @@ const SessionManager = (() => {
     document.head.appendChild(s);
   })();
 
-  return { get, save, clear, logout, isLoggedIn, getDaysSinceLastAccess, requireSession, updateProgress };
+  return { get, save, clear, login, loginById, getRecentUsers, logout, isLoggedIn, getDaysSinceLastAccess, requireSession, updateProgress };
 })();

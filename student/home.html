@@ -110,6 +110,13 @@
   <button class="logout-btn" onclick="SessionManager.logout()">로그아웃</button>
 </div>
 
+<!-- 수업 상태 표시줄 -->
+<div id="class-status-bar" style="
+  display:none; padding:0.35rem 1rem;
+  font-size:0.75rem; font-weight:bold; text-align:center;
+  transition: background 0.3s;
+"></div>
+
 <div class="welcome-card" id="welcome-card">
   <div class="icon">👋</div>
   <h2 id="welcome-title">안녕하세요!</h2>
@@ -192,6 +199,15 @@
 <script>
   SessionManager.requireSession(async session => {
     await FirebaseManager.init();
+
+    // 수업 상태 실시간 표시
+    FirebaseManager.watchClassMode(active => {
+      const bar = document.getElementById('class-status-bar');
+      bar.style.display  = 'block';
+      bar.textContent    = active ? '🔴 수업 진행 중' : '📚 자율학습 중';
+      bar.style.background = active ? 'rgba(220,50,47,0.15)' : 'rgba(39,174,96,0.1)';
+      bar.style.color      = active ? '#e74c3c' : '#27ae60';
+    });
 
     // 강사 퀴즈 발사 감지
     FirebaseManager.watchActiveQuiz(quizData => {

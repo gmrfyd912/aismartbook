@@ -109,8 +109,8 @@
 
 <div class="header">
   <h1>🎖️ 강사 대시보드</h1>
-  <div class="role-badge">강사</div>
-  <button class="logout-btn" onclick="if(confirm('강사 모드를 종료하시겠습니까?')) location.href='../student/home.html'">나가기</button>
+  <div class="role-badge" id="role-badge">강사</div>
+  <button class="logout-btn" onclick="instructorLogout()">나가기</button>
 </div>
 
 <div class="section-title">집체교육 모드</div>
@@ -118,12 +118,24 @@
   <div class="cm-icon" id="cm-icon">📷</div>
   <div class="cm-info">
     <div class="cm-title" id="cm-title">집체교육 대기 중</div>
-    <div class="cm-desc" id="cm-desc">활성화하면 교육생 AI음성이 꺼집니다</div>
+    <div class="cm-desc" id="cm-desc">활성화하면 교육생 AI 음성이 꺼집니다</div>
+    <div id="class-elapsed" style="display:none;font-size:0.78rem;color:#e74c3c;font-weight:bold;margin-top:0.25rem"></div>
   </div>
   <button class="toggle-btn inactive" id="class-mode-btn" onclick="toggleClassMode()">
     수업 시작
   </button>
 </div>
+
+<!-- 전면 카메라 (수업중에만 표시) -->
+<video id="instr-cam" autoplay muted playsinline style="
+  display:none; position:fixed;
+  top:3.5rem; right:0.5rem;
+  width:90px; height:72px;
+  object-fit:cover; border-radius:0.6rem;
+  transform:scaleX(-1); z-index:25;
+  border:2px solid rgba(231,76,60,0.55);
+  box-shadow:0 2px 12px rgba(231,76,60,0.25);
+"></video>
 
 <div class="section-title">현황</div>
 <div class="stats-grid">
@@ -190,10 +202,22 @@
 <script src="../js/firebase-manager.js"></script>
 
 <script>
-  let isClassMode = false;
-  let studentsData = {};
-  let quizDoneCount = 0;
+  // ── 강사 인증 ──────────────────────────────────────────────
+  const instrSess = (() => { try { return JSON.parse(localStorage.getItem('instructorSession')); } catch { return null; } })();
+  if (!instrSess?.isInstructor) { location.replace('../landing.html'); throw new Error('auth'); }
+  document.getElementById('role-badge').textContent = instrSess.name;
 
+  // ── 상태 ──────────────────────────────────────────────────
+  let isClassMode      = false;
+  let studentsData     = {};
+  let quizDoneCount    = 0;
+  let cameraStream     = null;
+  let heartbeatIv      = null;
+  let elapsedIv        = null;
+  let classStartTime   = null;
+  let hiddenTimer      = null;
+
+  // ── 초기화 ────────────────────────────────────────────────
   (async function init() {
     const ok = await FirebaseManager.init();
     if (!ok) {
@@ -204,7 +228,7 @@
     document.getElementById('firebase-note').textContent = '✅ Firebase 연결됨';
     document.getElementById('firebase-note').style.color = '#27ae60';
 
-    // 강사 모드 상태 감지
+    // classMode 상태 감지 (외부 변경 반영)
     FirebaseManager.watchInstructorMode(active => {
       isClassMode = active;
       updateClassModeUI(active);
@@ -217,104 +241,181 @@
       updateStats(students);
     });
 
-    // 퀴즈 결과 감지 (가장 최근 퀴즈)
+    // 퀴즈 결과 집계
     const quizRef = FirebaseManager.ref('quizResults');
     if (quizRef) {
       quizRef.on('value', snap => {
         const data = snap.val() || {};
         quizDoneCount = 0;
-        Object.values(data).forEach(quizData => {
-          quizDoneCount += Object.keys(quizData).length;
-        });
+        Object.values(data).forEach(q => { quizDoneCount += Object.keys(q).length; });
         document.getElementById('stat-quiz-done').textContent = quizDoneCount;
       });
     }
   })();
 
-  function updateClassModeUI(active) {
-    const btn  = document.getElementById('class-mode-btn');
-    const icon = document.getElementById('cm-icon');
-    const title = document.getElementById('cm-title');
-    const desc  = document.getElementById('cm-desc');
-
-    if (active) {
-      btn.textContent = '수업 종료';
-      btn.className = 'toggle-btn active';
-      icon.textContent = '📸';
-      title.textContent = '집체교육 진행 중';
-      desc.textContent = '교육생 AI 음성이 꺼진 상태입니다';
+  // 탭 숨김 5분 → 자동 수업종료
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isClassMode) {
+      hiddenTimer = setTimeout(() => { if (document.hidden && isClassMode) endClass(); }, 300000);
     } else {
-      btn.textContent = '수업 시작';
-      btn.className = 'toggle-btn inactive';
-      icon.textContent = '📷';
-      title.textContent = '집체교육 대기 중';
-      desc.textContent = '활성화하면 교육생 AI 음성이 꺼집니다';
+      clearTimeout(hiddenTimer);
+      hiddenTimer = null;
     }
+  });
+
+  // ── 수업 시작 / 종료 ───────────────────────────────────────
+  async function startClass() {
+    // 전면 카메라 활성화
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false
+      });
+      const vid = document.getElementById('instr-cam');
+      vid.srcObject = cameraStream;
+      vid.style.display = 'block';
+      await vid.play().catch(() => {});
+
+      // 카메라 끊김 → 자동 종료
+      cameraStream.getVideoTracks()[0].onended = () => { if (isClassMode) endClass(); };
+    } catch (e) {
+      console.warn('[Camera]', e.message);
+    }
+
+    // Firebase 업데이트
+    classStartTime = Date.now();
+    await FirebaseManager.setClassSession(true);
+
+    // Heartbeat (30s)
+    heartbeatIv = setInterval(() => FirebaseManager.setHeartbeat(), 30000);
+
+    // 경과 시간
+    document.getElementById('class-elapsed').style.display = 'block';
+    elapsedIv = setInterval(updateElapsed, 1000);
+    updateElapsed();
+  }
+
+  async function endClass() {
+    // 카메라 중지
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      cameraStream = null;
+    }
+    const vid = document.getElementById('instr-cam');
+    vid.style.display = 'none';
+    vid.srcObject = null;
+
+    // Firebase 업데이트
+    await FirebaseManager.setClassSession(false);
+
+    // 정리
+    clearInterval(heartbeatIv);
+    clearInterval(elapsedIv);
+    heartbeatIv = elapsedIv = null;
+    document.getElementById('class-elapsed').style.display = 'none';
   }
 
   async function toggleClassMode() {
-    await FirebaseManager.setInstructorMode(!isClassMode);
+    const btn = document.getElementById('class-mode-btn');
+    btn.disabled = true;
+    try {
+      if (isClassMode) await endClass(); else await startClass();
+    } finally {
+      btn.disabled = false;
+    }
   }
 
-  async function launchQuiz() {
-    const unit = document.getElementById('quiz-unit-select').value;
-    const btn  = document.getElementById('launch-btn');
-    const status = document.getElementById('quiz-status');
+  function updateElapsed() {
+    if (!classStartTime) return;
+    const sec = Math.floor((Date.now() - classStartTime) / 1000);
+    const m   = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s   = String(sec % 60).padStart(2, '0');
+    document.getElementById('class-elapsed').textContent = `⏱ ${m}:${s}`;
+  }
 
+  // ── UI 업데이트 ───────────────────────────────────────────
+  function updateClassModeUI(active) {
+    const btn   = document.getElementById('class-mode-btn');
+    const icon  = document.getElementById('cm-icon');
+    const title = document.getElementById('cm-title');
+    const desc  = document.getElementById('cm-desc');
+    if (active) {
+      btn.textContent = '수업 종료';
+      btn.className   = 'toggle-btn active';
+      icon.textContent  = '📸';
+      title.textContent = '수업 진행 중 🔴';
+      desc.textContent  = '교육생 AI 음성이 꺼진 상태입니다';
+    } else {
+      btn.textContent = '수업 시작';
+      btn.className   = 'toggle-btn inactive';
+      icon.textContent  = '📷';
+      title.textContent = '집체교육 대기 중';
+      desc.textContent  = '활성화하면 교육생 AI 음성이 꺼집니다';
+    }
+  }
+
+  // ── 로그아웃 ──────────────────────────────────────────────
+  function instructorLogout() {
+    const msg = isClassMode ? '수업 진행 중입니다. 종료하시겠습니까?' : '강사 모드를 종료하시겠습니까?';
+    if (!confirm(msg)) return;
+    const doLogout = () => {
+      localStorage.removeItem('instructorSession');
+      location.href = '../landing.html';
+    };
+    if (isClassMode) endClass().then(doLogout);
+    else doLogout();
+  }
+
+  // ── 퀴즈 발사 ─────────────────────────────────────────────
+  async function launchQuiz() {
+    const unit   = document.getElementById('quiz-unit-select').value;
+    const btn    = document.getElementById('launch-btn');
+    const status = document.getElementById('quiz-status');
     btn.disabled = true;
     status.textContent = '퀴즈 발송 중...';
-
     await FirebaseManager.launchQuiz({
       unit: unit === 'all' ? null : parseInt(unit),
       count: 5,
       launchedAt: new Date().toISOString()
     });
-
     status.textContent = `✅ 퀴즈 발송 완료 (${new Date().toLocaleTimeString()})`;
     btn.disabled = false;
-
-    // 30초 후 퀴즈 종료
     setTimeout(() => {
       FirebaseManager.clearQuiz();
       status.textContent = '퀴즈가 종료되었습니다';
     }, 30000);
   }
 
+  // ── 교육생 렌더링 ──────────────────────────────────────────
   function renderStudents(students) {
     const list = document.getElementById('students-list');
-    if (!students || Object.keys(students).length === 0) {
+    if (!students || !Object.keys(students).length) {
       list.innerHTML = '<div class="no-students">접속 중인 교육생이 없습니다</div>';
       return;
     }
-
-    // 최근 1시간 이내 접속자만 표시
     const cutoff = Date.now() - 3600000;
     const active = Object.entries(students)
       .filter(([, s]) => s.lastSync > cutoff)
       .sort((a, b) => (b[1].concentration || 0) - (a[1].concentration || 0));
-
     if (!active.length) {
       list.innerHTML = '<div class="no-students">최근 1시간 내 접속자가 없습니다</div>';
       return;
     }
-
     list.innerHTML = active.map(([id, s]) => {
       const conc = s.concentration ?? 100;
-      const concClass = conc >= 70 ? 'conc-high' : conc >= 40 ? 'conc-mid' : 'conc-low';
-      const concLabel = conc >= 70 ? '집중 중' : conc >= 40 ? '보통' : '집중 낮음';
-      const concColor = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
-      const unit = s.progress?.currentUnit || 1;
-
+      const cc = conc >= 70 ? 'conc-high' : conc >= 40 ? 'conc-mid' : 'conc-low';
+      const cl = conc >= 70 ? '집중 중' : conc >= 40 ? '보통' : '집중 낮음';
+      const co = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
       return `<div class="student-row">
         <div class="stu-avatar">👤</div>
         <div class="stu-info">
           <div class="stu-name">${escHtml(s.name || id)}</div>
-          <div class="stu-unit">${unit}단원 학습 중</div>
+          <div class="stu-unit">${s.progress?.currentUnit || 1}단원 학습 중</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem">
-          <div class="conc-badge ${concClass}">${concLabel}</div>
+          <div class="conc-badge ${cc}">${cl}</div>
           <div class="conc-bar-wrap">
-            <div class="conc-bar" style="width:${conc}%;background:${concColor}"></div>
+            <div class="conc-bar" style="width:${conc}%;background:${co}"></div>
           </div>
         </div>
       </div>`;
@@ -325,12 +426,10 @@
     const cutoff = Date.now() - 3600000;
     const active = Object.values(students).filter(s => s.lastSync > cutoff);
     document.getElementById('stat-online').textContent = active.length;
-
-    if (active.length > 0) {
-      const avgConc = Math.round(active.reduce((a, s) => a + (s.concentration ?? 100), 0) / active.length);
-      const lowConc = active.filter(s => (s.concentration ?? 100) < 40).length;
-      document.getElementById('stat-avg-conc').textContent = avgConc + '%';
-      document.getElementById('stat-low-conc').textContent = lowConc;
+    if (active.length) {
+      const avg = Math.round(active.reduce((a, s) => a + (s.concentration ?? 100), 0) / active.length);
+      document.getElementById('stat-avg-conc').textContent = avg + '%';
+      document.getElementById('stat-low-conc').textContent = active.filter(s => (s.concentration ?? 100) < 40).length;
     } else {
       document.getElementById('stat-avg-conc').textContent = '--';
       document.getElementById('stat-low-conc').textContent = '0';
