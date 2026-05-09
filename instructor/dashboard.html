@@ -126,19 +126,18 @@
   </button>
 </div>
 
-<!-- 전면 카메라 (수업중에만 표시) -->
-<video id="instr-cam" autoplay muted playsinline style="
-  display:none; position:fixed;
-  top:3.5rem; right:0.6rem;
-  width:220px; height:165px;
-  object-fit:cover; border-radius:0.9rem;
-  z-index:25;
-  border:2px solid rgba(231,76,60,0.7);
-  box-shadow:0 4px 20px rgba(231,76,60,0.35);
-"></video>
+<!-- 카메라 + 집중도 섹션 (수업중에만 표시) -->
+<div id="cam-section" style="display:none">
+  <div class="section-title">강사 카메라</div>
+  <div style="margin:0 1rem 0.8rem">
+    <video id="instr-cam" autoplay muted playsinline style="
+      width:100%; aspect-ratio:4/3;
+      object-fit:cover; border-radius:1rem; display:block;
+      border:2px solid rgba(231,76,60,0.7);
+      box-shadow:0 4px 20px rgba(231,76,60,0.35);
+    "></video>
+  </div>
 
-<!-- 실시간 집중도 모니터 (수업중에만 표시) -->
-<div id="conc-monitor" style="display:none">
   <div class="section-title">강사 카메라 집중도</div>
   <div style="margin:0 1rem 0.8rem;background:#1a1a2e;border-radius:1.2rem;padding:1.3rem;text-align:center">
     <div id="conc-score-display" style="font-size:3rem;font-weight:bold;color:#27ae60;line-height:1.1">--</div>
@@ -293,15 +292,15 @@
 
   // ── 수업 시작 / 종료 ───────────────────────────────────────
   async function startClass() {
-    // 전면 카메라 활성화
+    const vid = document.getElementById('instr-cam');
+
+    // 후면 카메라 활성화
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 320 }, height: { ideal: 240 } },
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false
       });
-      const vid = document.getElementById('instr-cam');
       vid.srcObject = cameraStream;
-      vid.style.display = 'block';
       await vid.play().catch(() => {});
 
       // 카메라 끊김 → 자동 종료
@@ -310,12 +309,14 @@
       console.warn('[Camera]', e.message);
     }
 
+    // 카메라 섹션 표시
+    document.getElementById('cam-section').style.display = 'block';
+
     // Firebase 업데이트
     classStartTime = Date.now();
     await FirebaseManager.setClassSession(true);
 
-    // 집중도 모니터 표시 + FaceMesh 시작
-    document.getElementById('conc-monitor').style.display = 'block';
+    // FaceMesh 시작
     initInstructorFaceMesh(vid);
 
     // Heartbeat (30s)
@@ -334,15 +335,16 @@
       cameraStream = null;
     }
     const vid = document.getElementById('instr-cam');
-    vid.style.display = 'none';
     vid.srcObject = null;
+
+    // 카메라 섹션 숨김
+    document.getElementById('cam-section').style.display = 'none';
 
     // Firebase 업데이트
     await FirebaseManager.setClassSession(false);
 
     // FaceMesh 중지 + UI 초기화
     fmRunning = false;
-    document.getElementById('conc-monitor').style.display = 'none';
     document.getElementById('instr-alert').style.display  = 'none';
     lowConcCount = 0;
 
