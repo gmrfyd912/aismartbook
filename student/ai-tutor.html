@@ -214,6 +214,8 @@
     #char-container {
       position: fixed;
       z-index: 15;
+      top: 0;
+      right: 0;
       width: 44%;
       display: flex;
       flex-direction: column;
@@ -780,39 +782,38 @@ function initFaceMesh(videoEl) {
 
 function onFaceResults(res) {
   if (!res.multiFaceLandmarks?.length) {
+    // 얼굴 미감지 = 교재를 보는 중으로 간주 → 집중도 유지/소폭 상승
     frownStart = null;
-    concScore    = Math.max(0, concScore - 2);
-    concSmoothed = Math.round((concSmoothed + concScore) / 2);
+    concScore    = Math.min(100, concScore + 1);
+    concSmoothed = Math.round((concSmoothed * 3 + concScore) / 4);
     updateConcUI();
     return;
   }
   const lms = res.multiFaceLandmarks[0];
 
-  // EAR (Eye Aspect Ratio) — 졸음 감지
+  // EAR — 졸음 감지 (0.15: 실제로 눈이 감길 때만)
   const d = (a, b) => Math.hypot(lms[a].x - lms[b].x, lms[a].y - lms[b].y);
   const earL = (d(160,144) + d(158,153)) / (2 * d(33,133));
   const earR = (d(385,380) + d(387,373)) / (2 * d(362,263));
   const ear  = (earL + earR) / 2;
-  const drowsy = ear < 0.20;
+  const drowsy = ear < 0.15;
 
-  // 고개 방향 (yaw/pitch) — 시선 이탈 감지
-  const faceW  = lms[454].x - lms[234].x;
-  const faceH  = lms[152].y - lms[10].y;
-  const yaw    = faceW  > 0 ? (lms[1].x - (lms[234].x + lms[454].x) / 2) / (faceW  / 2) : 0;
-  const pitch  = faceH  > 0 ? (lms[1].y - (lms[10].y  + lms[152].y) / 2) / (faceH  / 2) : 0;
-  const distracted = Math.abs(yaw) > 0.35 || Math.abs(pitch) > 0.35;
+  // 좌우 시선 이탈만 감지 (pitch 제외 — 교재 볼 때 고개 숙임 허용)
+  const faceW = lms[454].x - lms[234].x;
+  const yaw   = faceW > 0 ? (lms[1].x - (lms[234].x + lms[454].x) / 2) / (faceW / 2) : 0;
+  const sideDistracted = Math.abs(yaw) > 0.45;
 
-  // 눈썹 찌푸림 — 이해 困難 감지 (자동 개입용)
+  // 눈썹 찌푸림 — 자동 개입 판단용만 사용 (집중도 수치에 영향 없음)
   const lb = lms[55], rb = lms[285], nose = lms[168];
   const browDist   = Math.abs(lb.x - rb.x);
   const browToNose = ((lb.y + rb.y) / 2) - nose.y;
   const frowning   = browDist < 0.09 && browToNose < 0.045;
   checkFrownIntervention(frowning);
 
-  // 집중도 누적 계산
-  const delta  = drowsy ? -4 : distracted ? -2 : frowning ? -1 : +2;
+  // 집중도 계산: 카메라를 보거나 교재에 집중 = 높은 점수
+  const delta  = drowsy ? -5 : sideDistracted ? -2 : +3;
   concScore    = Math.min(100, Math.max(0, concScore + delta));
-  concSmoothed = Math.round((concSmoothed + concScore) / 2);
+  concSmoothed = Math.round((concSmoothed * 3 + concScore) / 4);
 
   updateConcUI();
 }
@@ -953,12 +954,14 @@ function esc(s) {
 function initCharDrag() {
   const el = document.getElementById('char-container');
 
-  // 저장된 위치 복원 또는 기본값 (우측 상단)
+  // 저장된 위치 복원 (없으면 CSS top:0; right:0 기본값 유지)
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('charPos')); } catch {}
-  el.style.right = 'auto';
-  el.style.top   = (saved?.top  ?? 80) + 'px';
-  el.style.left  = (saved?.left ?? Math.max(0, window.innerWidth - el.offsetWidth - 10)) + 'px';
+  if (saved) {
+    el.style.right = 'auto';
+    el.style.left  = saved.left + 'px';
+    el.style.top   = saved.top  + 'px';
+  }
 
   let dragging = false, startX, startY, startLeft, startTop;
 
@@ -970,6 +973,10 @@ function initCharDrag() {
     const rect = el.getBoundingClientRect();
     startLeft  = rect.left;
     startTop   = rect.top;
+    // right 기반 → left 기반으로 전환
+    el.style.right = 'auto';
+    el.style.left  = startLeft + 'px';
+    el.style.top   = startTop  + 'px';
     el.style.opacity   = '0.8';
     el.style.animation = 'none';
     e.preventDefault();
