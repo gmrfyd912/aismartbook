@@ -335,26 +335,32 @@
 //  State
 // ══════════════════════════════════════════════
 const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
+const LIVE_WS_URL    = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
 
-let session       = null;
-let isClassMode   = false;
-let isMuted       = false;
-let micOn         = false;  // 마이크 OFF로 시작, 명시적으로 켜야 함
-let recognition   = null;
-let isRecognizing = false;
-let isSpeaking    = false;
-let talkInterval  = null;
-let currentVoice  = null;
-let frownStart    = null;
-let idleTimer     = null;
-let sessionStart  = Date.now();
-let curriculum    = null;
-let messages      = [];      // {type, text}[]
-let cameraStream  = null;
-let concScore     = 80;   // 로컬 AI 개입 판단용만 사용 (Firebase 미전송)
-let concSmoothed  = 80;
+let session          = null;
+let isClassMode      = false;
+let isMuted          = false;
+let micOn            = false;
+let isSpeaking       = false;
+let talkInterval     = null;
+let currentVoice     = null;
+let frownStart       = null;
+let idleTimer        = null;
+let sessionStart     = Date.now();
+let curriculum       = null;
+let messages         = [];
+let cameraStream     = null;
+let concScore        = 80;
+let concSmoothed     = 80;
+let wasClassMode     = false;
 
-let wasClassMode = false; // 수업종료 후 재활성화 메시지용
+// Gemini Live 세션 상태
+let liveSocket       = null;
+let liveMicCtx       = null;
+let liveMicStream    = null;
+let liveMicProcessor = null;
+let livePlayCtx      = null;
+let liveNextPlay     = 0;
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -378,7 +384,6 @@ SessionManager.requireSession(async s => {
   document.getElementById('unit-label').textContent = `${s.currentUnit || 1}단원`;
 
   initVoices();
-  initSpeechRecognition();
   await startCamera();
 
   await FirebaseManager.init();
@@ -442,16 +447,8 @@ function speak(text) {
   utt.rate  = 0.92;
   utt.pitch = 1.05;
   if (currentVoice) utt.voice = currentVoice;
-  utt.onstart = () => {
-    isSpeaking = true;
-    startTalkAnim();
-    if (micOn) stopRecognition();
-  };
-  utt.onend = utt.onerror = () => {
-    isSpeaking = false;
-    stopTalkAnim();
-    if (micOn) setTimeout(startRecognition, 400);
-  };
+  utt.onstart = () => { isSpeaking = true; startTalkAnim(); };
+  utt.onend = utt.onerror = () => { isSpeaking = false; stopTalkAnim(); };
   window.speechSynthesis.speak(utt);
 }
 
@@ -473,7 +470,12 @@ function stopSpeak() {
 function toggleMute() {
   isMuted = !isMuted;
   document.getElementById('mute-btn').textContent = isMuted ? '🔇' : '🔊';
-  if (isMuted) stopSpeak();
+  if (isMuted) {
+    stopSpeak();
+    livePlayCtx?.suspend().catch(() => {});
+  } else {
+    livePlayCtx?.resume().catch(() => {});
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -520,55 +522,156 @@ function greet(text) {
 }
 
 // ══════════════════════════════════════════════
-//  STT — 단순 ON/OFF 토글
+//  Gemini Live — 실시간 양방향 음성 대화
 // ══════════════════════════════════════════════
-function initSpeechRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return;
+async function startLiveSession() {
+  if (liveSocket) return;
+  try {
+    liveMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  } catch {
+    addMessage('tutor', '마이크 권한이 필요합니다. 브라우저에서 마이크를 허용해주세요.');
+    micOn = false; updateMicBtn(); return;
+  }
 
-  recognition = new SR();
-  recognition.lang           = 'ko-KR';
-  recognition.continuous     = true;
-  recognition.interimResults = true;
+  liveSocket = new WebSocket(LIVE_WS_URL);
 
-  recognition.onresult = e => {
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        const t = e.results[i][0].transcript.trim();
-        if (t) handleUserInput(t);
+  liveSocket.onopen = () => {
+    liveSocket.send(JSON.stringify({
+      setup: {
+        model: 'models/gemini-2.0-flash-exp',
+        generation_config: {
+          response_modalities: ['AUDIO'],
+          speech_config: { voice_config: { prebuilt_voice_config: { voice_name: 'Kore' } } }
+        },
+        system_instruction: {
+          parts: [{ text: '당신은 건설현장 신호수 교육 전문 AI 튜터입니다. 교육생이 신호수 교재를 공부하다 모르는 것을 물어봅니다. 친근하고 명확하게 한국어로, 짧고 핵심만 답변하세요. 답변은 2~4문장으로 간결하게 해주세요.' }]
+        },
+        input_audio_transcription: {},
+        output_audio_transcription: {}
+      }
+    }));
+    startMicStreaming();
+  };
+
+  liveSocket.onmessage = handleLiveMessage;
+
+  liveSocket.onerror = () => {
+    addMessage('tutor', '실시간 연결에 오류가 발생했습니다. 마이크를 다시 켜보세요.');
+    cleanupLive(); micOn = false; updateMicBtn();
+  };
+
+  liveSocket.onclose = () => {
+    cleanupLive();
+    if (micOn) { micOn = false; updateMicBtn(); }
+  };
+}
+
+function handleLiveMessage(event) {
+  let msg;
+  try { msg = JSON.parse(event.data); } catch { return; }
+  if (msg.setupComplete) return;
+
+  const sc = msg.serverContent;
+  if (!sc) return;
+
+  // 사용자 음성 텍스트
+  if (sc.inputTranscription?.text?.trim()) {
+    addMessage('user', sc.inputTranscription.text.trim());
+    onUserActivity();
+  }
+  // AI 음성 텍스트
+  if (sc.outputTranscription?.text?.trim()) {
+    addMessage('tutor', sc.outputTranscription.text.trim());
+    startTalkAnim();
+  }
+  // AI 오디오 청크
+  if (sc.modelTurn?.parts) {
+    for (const part of sc.modelTurn.parts) {
+      if (part.inlineData?.mimeType?.startsWith('audio/pcm')) {
+        const rate = parseInt(part.inlineData.mimeType.match(/rate=(\d+)/)?.[1] || '24000');
+        playPCMAudio(part.inlineData.data, rate);
       }
     }
-  };
-  recognition.onerror = () => {
-    isRecognizing = false;
-    if (micOn && !isSpeaking) setTimeout(startRecognition, 1200);
-  };
-  // 브라우저가 자동으로 끊으면 micOn 상태면 재시작
-  recognition.onend = () => {
-    isRecognizing = false;
-    if (micOn && !isSpeaking) setTimeout(startRecognition, 300);
-  };
+  }
+  // 턴 종료
+  if (sc.turnComplete) {
+    const wait = Math.max(0, (liveNextPlay - (livePlayCtx?.currentTime || 0)) * 1000);
+    setTimeout(stopTalkAnim, wait);
+  }
 }
 
-function startRecognition() {
-  if (!recognition || isRecognizing || isSpeaking) return;
-  try { recognition.start(); isRecognizing = true; } catch {}
+async function startMicStreaming() {
+  liveMicCtx = new AudioContext({ sampleRate: 16000 });
+  const source = liveMicCtx.createMediaStreamSource(liveMicStream);
+  liveMicProcessor = liveMicCtx.createScriptProcessor(2048, 1, 1);
+  liveMicProcessor.onaudioprocess = (e) => {
+    if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return;
+    const pcm = float32ToInt16(e.inputBuffer.getChannelData(0));
+    liveSocket.send(JSON.stringify({
+      realtime_input: { media_chunks: [{ mime_type: 'audio/pcm;rate=16000', data: int16ToBase64(pcm) }] }
+    }));
+  };
+  source.connect(liveMicProcessor);
+  liveMicProcessor.connect(liveMicCtx.destination);
 }
 
-function stopRecognition() {
-  if (!recognition) return;
-  isRecognizing = false;
-  try { recognition.stop(); } catch {}
-  try { recognition.abort(); } catch {}
+function playPCMAudio(b64, sampleRate) {
+  if (isMuted || isClassMode) return;
+  if (!livePlayCtx || livePlayCtx.sampleRate !== sampleRate) {
+    livePlayCtx  = new AudioContext({ sampleRate });
+    liveNextPlay = 0;
+  }
+  const i16  = base64ToInt16(b64);
+  const buf  = livePlayCtx.createBuffer(1, i16.length, sampleRate);
+  const ch   = buf.getChannelData(0);
+  for (let i = 0; i < i16.length; i++) ch[i] = i16[i] / 32768;
+  const src  = livePlayCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(livePlayCtx.destination);
+  if (liveNextPlay < livePlayCtx.currentTime) liveNextPlay = livePlayCtx.currentTime;
+  src.start(liveNextPlay);
+  liveNextPlay += buf.duration;
+  startTalkAnim();
+}
+
+function float32ToInt16(f32) {
+  const i16 = new Int16Array(f32.length);
+  for (let i = 0; i < f32.length; i++) {
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return i16;
+}
+function int16ToBase64(i16) {
+  const b = new Uint8Array(i16.buffer);
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s);
+}
+function base64ToInt16(b64) {
+  const bin = atob(b64);
+  const b   = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return new Int16Array(b.buffer);
+}
+
+function stopLiveSession() { cleanupLive(); }
+
+function cleanupLive() {
+  if (liveMicProcessor) { liveMicProcessor.disconnect(); liveMicProcessor = null; }
+  if (liveMicCtx)       { liveMicCtx.close();            liveMicCtx = null; }
+  if (liveMicStream)    { liveMicStream.getTracks().forEach(t => t.stop()); liveMicStream = null; }
+  if (liveSocket && liveSocket.readyState < 2) liveSocket.close();
+  liveSocket   = null;
+  liveNextPlay = 0;
 }
 
 function toggleMic() {
   micOn = !micOn;
-  if (micOn) {
-    startRecognition();
-  } else {
-    stopRecognition();
-  }
+  if (micOn) startLiveSession();
+  else       stopLiveSession();
   updateMicBtn();
 }
 
@@ -628,24 +731,23 @@ function askQuick(text) { handleUserInput(text); }
 //  AI 답변
 // ══════════════════════════════════════════════
 async function handleUserInput(text) {
-  onUserActivity();           // 개입 플래그 해제 + 타이머 리셋
+  onUserActivity();
   addMessage('user', text);
 
-  // 처리 중 마이크 OFF (AI 응답이 인식되는 것 방지)
-  if (micOn) stopRecognition();
+  // Live 세션 활성 중이면 WebSocket으로 텍스트 전송
+  if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+    liveSocket.send(JSON.stringify({
+      client_content: { turns: [{ role: 'user', parts: [{ text }] }], turn_complete: true }
+    }));
+    return;
+  }
 
-  // 타이핑 인디케이터 표시
+  // Live 꺼져 있을 때: REST API → TTS
   renderMessages(true);
-
   const answer = await getAiResponse(text);
-
   addMessage('tutor', answer);
   speak(answer);
-
-  // 데이터 저장
-  if (session) {
-    DataManager.saveProgress({ lastAiQuery: text, lastAiResponse: answer.slice(0, 120) });
-  }
+  if (session) DataManager.saveProgress({ lastAiQuery: text, lastAiResponse: answer.slice(0, 120) });
 }
 
 async function callGemini(query) {
@@ -878,10 +980,10 @@ function triggerIdleIntervention() {
   if (Date.now() - lastIdleIntervention < IDLE_COOLDOWN) return; // 5분 쿨다운
   isInterventionActive = true;
   lastIdleIntervention = Date.now();
-  const msg = '혹시 어려운 부분 있으신가요? 편하게 물어보세요! 😊';
+  const msg = '혹시 어려운 부분 있으신가요? 편하게 물어보세요!';
   waveAnim();
   addMessage('tutor', msg);
-  speak(msg);
+  if (!(liveSocket && liveSocket.readyState === WebSocket.OPEN)) speak(msg);
   // 타이머 재시작 없음 — 교육생이 응답할 때 onUserActivity()가 재시작
 }
 
@@ -899,7 +1001,7 @@ function checkFrownIntervention(frowning) {
       const msg = '뭔가 헷갈리시는 것 같은데, 어떤 부분이 어려우세요?';
       waveAnim();
       addMessage('tutor', msg);
-      speak(msg);
+      if (!(liveSocket && liveSocket.readyState === WebSocket.OPEN)) speak(msg);
     }
   } else {
     frownStart = null;
@@ -913,7 +1015,8 @@ function disableAITutor() {
   if (isClassMode) return;
   isClassMode  = true;
   wasClassMode = true;
-  stopRecognition();
+  stopLiveSession();
+  micOn = false; updateMicBtn();
   if (isSpeaking) stopSpeak();
   document.getElementById('chat-input').disabled = true;
   document.getElementById('send-btn').disabled   = true;
@@ -921,14 +1024,13 @@ function disableAITutor() {
 }
 
 function enableAITutor() {
-  if (!isClassMode && !wasClassMode) return; // 이미 활성화 상태
+  if (!isClassMode && !wasClassMode) return;
   const wasDis = wasClassMode;
   isClassMode  = false;
   wasClassMode = false;
   document.getElementById('chat-input').disabled = false;
   document.getElementById('send-btn').disabled   = false;
   document.getElementById('class-overlay').style.display = 'none';
-  if (micOn && !isRecognizing) startRecognition();
   if (wasDis) {
     setTimeout(() => {
       const msg = '수업이 종료됐어요! 복습이 필요한 부분 있으면 물어보세요 😊';
@@ -943,7 +1045,8 @@ function enableAITutor() {
 // ══════════════════════════════════════════════
 function goHome() {
   stopSpeak();
-  stopRecognition();
+  stopLiveSession();
+  if (livePlayCtx) { livePlayCtx.close(); livePlayCtx = null; }
   if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
   DataManager.addStudyTime(Math.round((Date.now() - sessionStart) / 1000));
   location.href = './home.html';
