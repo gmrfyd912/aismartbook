@@ -224,6 +224,7 @@
 <script src="../js/firebase-manager.js"></script>
 <script>
   let _bannerTs = 0;
+  let activeQuizUnit = '';
 
   function showBanner(ts) {
     _bannerTs = ts;
@@ -256,7 +257,6 @@
     });
 
     // 강사 퀴즈 발사 감지
-    let activeQuizUnit = '';
     FirebaseManager.watchActiveQuiz(quizData => {
       if (!quizData?.timestamp) { hideBanner(); return; }
       const age = Date.now() - quizData.timestamp;
