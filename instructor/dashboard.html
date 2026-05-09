@@ -15,6 +15,8 @@
     }
     .header h1 { font-size: 1.15rem; }
     .header .role-badge { background: rgba(231,76,60,0.2); color: #e74c3c; padding: 0.3rem 0.75rem; border-radius: 2rem; font-size: 0.78rem; }
+    .header .logout-btn { background: transparent; color: #555; border: 1px solid #2a2a3e; border-radius: 2rem; padding: 0.22rem 0.65rem; font-size: 0.7rem; cursor: pointer; }
+    .header .logout-btn:active { color: #e74c3c; border-color: #e74c3c; }
 
     .section-title { font-size: 0.78rem; color: #555; font-weight: bold; letter-spacing: 0.05em; padding: 0 1rem; margin-bottom: 0.5rem; margin-top: 1rem; }
 
@@ -108,6 +110,7 @@
 <div class="header">
   <h1>🎖️ 강사 대시보드</h1>
   <div class="role-badge">강사</div>
+  <button class="logout-btn" onclick="if(confirm('강사 모드를 종료하시겠습니까?')) location.href='../student/home.html'">나가기</button>
 </div>
 
 <div class="section-title">집체교육 모드</div>
