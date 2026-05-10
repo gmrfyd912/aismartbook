@@ -464,11 +464,17 @@ function speak(text) {
   if (currentVoice) utt.voice = currentVoice;
   utt.onstart = () => {
     isSpeaking = true; startTalkAnim();
-    if (isRecognizing) { try { recognition.stop(); } catch {} isRecognizing = false; }
+    clearSilenceTimer();
+    clearInterim();
+    // abort()로 즉시 강제 중단 (stop()은 버퍼 처리 후 종료라 TTS 음성이 인식될 수 있음)
+    if (isRecognizing) {
+      isRecognizing = false;
+      try { recognition.abort(); } catch {}
+    }
   };
   utt.onend = utt.onerror = () => {
     isSpeaking = false; stopTalkAnim();
-    if (micOn) setTimeout(startRecognition, 400);
+    if (micOn) setTimeout(startRecognition, 500);
   };
   window.speechSynthesis.speak(utt);
 }
@@ -540,6 +546,25 @@ function greet(text) {
 // ══════════════════════════════════════════════
 //  STT — Web Speech API (연속 인식 + 3초 침묵 자동 전송)
 // ══════════════════════════════════════════════
+
+// 한국어 STT가 영어 단어를 음소 변환한 것을 원래 영어로 복원
+const STT_CORRECTIONS = [
+  [/재미나이|재미나|제미나이|제미나/gi, 'Gemini'],
+  [/플래시/gi,                          'Flash'],
+  [/에이피아이|에이 피 아이/gi,          'API'],
+  [/에이아이/gi,                         'AI'],
+  [/챗지피티|챗 지피티/gi,               'ChatGPT'],
+  [/유알엘|유 알 엘/gi,                  'URL'],
+];
+
+function normalizeSTT(text) {
+  let out = text;
+  for (const [pattern, replacement] of STT_CORRECTIONS) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
+}
+
 function initSpeechRecognition() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;
@@ -550,16 +575,19 @@ function initSpeechRecognition() {
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
+    // TTS 재생 중이면 결과 전부 무시 (피드백 루프 방지)
+    if (isSpeaking) return;
+
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       if (e.results[i].isFinal) {
-        interimText += e.results[i][0].transcript;
+        interimText += normalizeSTT(e.results[i][0].transcript);
         resetSilenceTimer();
       } else {
         interim += e.results[i][0].transcript;
       }
     }
-    showInterim(interimText + interim);
+    showInterim(interimText + normalizeSTT(interim));
   };
 
   recognition.onerror = (e) => {
