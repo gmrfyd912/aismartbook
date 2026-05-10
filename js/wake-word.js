@@ -1,33 +1,39 @@
-// AI 조교 Wake Word Engine — 상시 대기 모드
+// AI 조교 Wake Word Engine — VAD 백그라운드 + STT 트리거 방식
 (function () {
   'use strict';
 
-  // ── 상수 ──────────────────────────────────────────────────────
   const PROXY      = 'https://orange-resonance-c0d3.gmrfyd912.workers.dev';
   const WAKE_WORDS = ['ai조교', 'ai 조교', '에이아이조교', '조교야', 'ai야', '조교'];
   const IDLE_MS    = 30000;
+  const VAD_THRESHOLD  = 18;  // 주파수 평균값 기준
+  const VAD_CONFIRM_MS = 300; // 음성 감지 확인 시간 (ms)
 
-  // 스크립트 기준 경로 계산 (어느 디렉터리에서 로드해도 정확)
   const scriptEl  = document.currentScript;
   const scriptSrc = scriptEl ? scriptEl.src : '';
   const jsDir     = scriptSrc.substring(0, scriptSrc.lastIndexOf('/') + 1);
   const CHAR_IMG  = jsDir.replace('/js/', '/assets/') + 'instructor_idle.png';
 
-  // 전용 AI 조교가 있거나 관련 없는 페이지는 인식 생략
-  const pagePath   = location.pathname;
-  const SKIP_REC   = ['ai-tutor.html', 'instructor/dashboard'].some(p => pagePath.includes(p));
-  const SKIP_ALL   = ['landing.html', 'index.html', 'pose.html', 'pose-capture', 'pose-extract']
-                       .some(p => pagePath.includes(p));
-
+  const pagePath = location.pathname;
+  // ai-tutor는 자체 AI 인터페이스이므로 완전 스킵
+  const SKIP_ALL = ['landing.html', 'index.html', 'pose.html', 'pose-capture', 'pose-extract', 'ai-tutor.html']
+                     .some(p => pagePath.includes(p));
   if (SKIP_ALL) return;
 
   // ── 상태 ──────────────────────────────────────────────────────
-  let state     = 'idle';   // idle | active | thinking | speaking
+  let state     = 'idle';  // idle | active | thinking | speaking
   let rec       = null;
   let idleTimer = null;
   let history   = [];
   let userName  = '';
   let userRole  = '교육생';
+
+  // VAD 관련
+  let vadStream   = null;
+  let vadCtx      = null;
+  let vadAnalyser = null;
+  let vadRunning  = false;
+  let vadTimer    = null;
+  let vadLoud     = false;
 
   // ── 세션 감지 ─────────────────────────────────────────────────
   function loadSession() {
@@ -82,31 +88,21 @@
         max-height: 55vh;
       }
       #ww-panel.ww-open { transform: translateY(0); }
-
       #ww-close {
         position: absolute; top: 0.55rem; right: 0.9rem;
         background: none; border: none; color: #555; font-size: 1.1rem;
         cursor: pointer; padding: 0.25rem 0.5rem; line-height: 1;
         -webkit-tap-highlight-color: transparent;
       }
-
-      #ww-top-row {
-        display: flex; align-items: flex-start; gap: 0.8rem;
-      }
+      #ww-top-row { display: flex; align-items: flex-start; gap: 0.8rem; }
       #ww-char-wrap {
         width: 56px; height: 76px; overflow: hidden;
-        border-radius: 0.7rem; flex-shrink: 0; background: transparent;
+        border-radius: 0.7rem; flex-shrink: 0;
       }
-      #ww-char-wrap img {
-        width: 100%; height: 200%; object-fit: cover; object-position: top center;
-      }
+      #ww-char-wrap img { width: 100%; height: 200%; object-fit: cover; object-position: top center; }
       #ww-char-fallback { font-size: 2.2rem; line-height: 76px; text-align: center; display: none; }
-
       #ww-right { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
-      #ww-status-row {
-        display: flex; align-items: center; gap: 0.35rem;
-        font-size: 0.68rem; color: #4f8ef7;
-      }
+      #ww-status-row { display: flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; color: #4f8ef7; }
       #ww-status-dot {
         width: 6px; height: 6px; border-radius: 50%; background: #4f8ef7; flex-shrink: 0;
         animation: wwDotBlink 1s ease-in-out infinite;
@@ -117,7 +113,6 @@
         font-size: 0.85rem; color: #eee; line-height: 1.5;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
-
       #ww-msgs {
         flex: 1; overflow-y: auto; display: flex; flex-direction: column;
         gap: 0.4rem; padding-right: 0.2rem; max-height: 30vh;
@@ -134,7 +129,6 @@
 
   // ── HTML 생성 ─────────────────────────────────────────────────
   function createUI() {
-    // 플로팅 아이콘
     const icon = document.createElement('div');
     icon.id = 'ww-icon';
     icon.title = '"조교야" 또는 클릭으로 AI 조교 호출';
@@ -146,7 +140,6 @@
     icon.addEventListener('click', onIconClick);
     document.body.appendChild(icon);
 
-    // 채팅 패널
     const panel = document.createElement('div');
     panel.id = 'ww-panel';
     panel.innerHTML = `
@@ -194,16 +187,68 @@
     if (state === 'idle') activate('icon');
     else onCloseClick();
   }
-  function onCloseClick() {
-    stopTTS();
-    enterIdle();
+  function onCloseClick() { stopTTS(); enterIdle(); }
+
+  // ── VAD — Web Audio API 음량 감지 (STT 없이 백그라운드 대기) ──
+  function startVAD() {
+    if (vadRunning) return;
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })
+      .then(stream => {
+        vadStream   = stream;
+        vadCtx      = new (window.AudioContext || window.webkitAudioContext)();
+        const src   = vadCtx.createMediaStreamSource(stream);
+        vadAnalyser = vadCtx.createAnalyser();
+        vadAnalyser.fftSize = 256;
+        src.connect(vadAnalyser);
+        vadRunning  = true;
+        vadLoud     = false;
+        vadPoll();
+      })
+      .catch(e => {
+        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') showPermDenied();
+      });
+  }
+
+  function stopVAD() {
+    vadRunning = false;
+    vadLoud    = false;
+    clearTimeout(vadTimer);
+    if (vadCtx)    { try { vadCtx.close(); } catch {} vadCtx = null; vadAnalyser = null; }
+    if (vadStream) { vadStream.getTracks().forEach(t => t.stop()); vadStream = null; }
+  }
+
+  function vadPoll() {
+    if (!vadRunning || !vadAnalyser) return;
+    // 대화 중에는 VAD 체크 스킵
+    if (state !== 'idle') { vadLoud = false; setTimeout(vadPoll, 200); return; }
+
+    const buf = new Uint8Array(vadAnalyser.frequencyBinCount);
+    vadAnalyser.getByteFrequencyData(buf);
+    const avg = buf.reduce((s, v) => s + v, 0) / buf.length;
+
+    if (avg >= VAD_THRESHOLD) {
+      if (!vadLoud) {
+        vadLoud  = true;
+        // VAD_CONFIRM_MS 동안 지속되면 STT 시작 (이 때 첫 띵~ 소리)
+        vadTimer = setTimeout(() => {
+          if (vadLoud && state === 'idle') {
+            stopVAD();
+            startRec();
+          }
+        }, VAD_CONFIRM_MS);
+      }
+    } else {
+      vadLoud = false;
+      clearTimeout(vadTimer);
+    }
+    setTimeout(vadPoll, 150);
   }
 
   // ── 상태 전환 ─────────────────────────────────────────────────
   function activate(trigger) {
     if (state !== 'idle') return;
-    state = 'speaking';   // TTS 중에 STT 결과 처리 차단
-    stopRec();            // 인사말 TTS가 마이크에 잡히지 않도록 먼저 중단
+    state = 'speaking';   // TTS 중 STT 결과 차단
+    stopRec();            // 인사말이 마이크에 잡히지 않도록 미리 중단
     history = [];
     clearMsgs();
     panelOpen(true);
@@ -214,7 +259,7 @@
     speak(greeting, () => {
       state = 'active';
       setStatus('듣는 중...');
-      if (!SKIP_REC) startRec();
+      startRec();
     });
     resetIdleTimer();
   }
@@ -224,7 +269,9 @@
     clearTimeout(idleTimer);
     panelOpen(false);
     history = [];
-    if (!SKIP_REC) restartRec();
+    stopRec();
+    stopVAD();
+    setTimeout(startVAD, 600); // VAD 백그라운드 대기로 복귀 (띵~ 없음)
   }
 
   function resetIdleTimer() {
@@ -234,16 +281,15 @@
 
   // ── Wake Word 감지 ────────────────────────────────────────────
   function hasWakeWord(txt) {
-    const lower = txt.toLowerCase().replace(/\s+/g, ' ').trim();
+    const lower   = txt.toLowerCase().replace(/\s+/g, ' ').trim();
     const nospace = lower.replace(/ /g, '');
     return WAKE_WORDS.some(w => lower.includes(w) || nospace.includes(w.replace(/ /g, '')));
   }
 
-  // ── 음성 인식 ─────────────────────────────────────────────────
+  // ── 음성 인식 (VAD가 음성 감지한 뒤에만 시작) ─────────────────
   function initRec() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return false;
-
     rec = new SR();
     rec.lang = 'ko-KR';
     rec.continuous = true;
@@ -257,7 +303,13 @@
       if (!txt) return;
 
       if (state === 'idle') {
-        if (hasWakeWord(txt)) activate(txt);
+        if (hasWakeWord(txt)) {
+          activate(txt);
+        } else {
+          // wake word 없음 → STT 종료 후 VAD 복귀 (추가 띵~ 없음)
+          stopRec();
+          setTimeout(startVAD, 500);
+        }
       } else if (state === 'active') {
         // wake word만 반복하면 무시
         if (hasWakeWord(txt) && txt.replace(/\s/g, '').length <= 5) return;
@@ -271,9 +323,14 @@
     };
 
     rec.onend = () => {
-      if (state !== 'speaking' && state !== 'thinking') {
+      if (state === 'idle') {
+        // no-speech 등으로 종료 → VAD로 복귀
+        setTimeout(startVAD, 500);
+      } else if (state === 'active') {
+        // 대화 중 Chrome 세션 만료 → 재시작
         setTimeout(startRec, 700);
       }
+      // speaking/thinking 중에는 재시작하지 않음
     };
 
     return true;
@@ -281,24 +338,20 @@
 
   function startRec() {
     if (!rec || state === 'speaking' || state === 'thinking') return;
+    document.getElementById('ww-icon')?.classList.add('ww-listening');
     try {
       rec.start();
-      document.getElementById('ww-icon')?.classList.add('ww-listening');
     } catch (err) {
       if (!err.message?.includes('already started')) {
-        setTimeout(startRec, 1200);
+        document.getElementById('ww-icon')?.classList.remove('ww-listening');
+        setTimeout(startVAD, 1000);
       }
     }
   }
 
   function stopRec() {
-    try { rec?.stop(); } catch {}
     document.getElementById('ww-icon')?.classList.remove('ww-listening');
-  }
-
-  function restartRec() {
-    stopRec();
-    setTimeout(startRec, 600);
+    try { rec?.stop(); } catch {}
   }
 
   // ── 질문 처리 ─────────────────────────────────────────────────
@@ -322,7 +375,7 @@
       setStatus('듣는 중...');
       setLatest('');
       resetIdleTimer();
-      if (!SKIP_REC) startRec();
+      startRec();
     });
   }
 
@@ -351,7 +404,7 @@
       return answer;
     } catch (e) {
       console.warn('[WW Gemini]', e.message);
-      history.pop(); // 실패한 user 메시지 제거
+      history.pop();
       return '죄송합니다, 잠시 후 다시 시도해주세요.';
     }
   }
@@ -384,20 +437,23 @@
     setTimeout(() => d.remove(), 6000);
   }
 
+  // ── 외부 훅 — 강사 대시보드 자체 STT와 마이크 충돌 방지 ─────
+  window.wakeWordPause  = () => { stopVAD(); stopRec(); };
+  window.wakeWordResume = () => { if (state === 'idle') setTimeout(startVAD, 500); };
+
   // ── 초기화 ────────────────────────────────────────────────────
   function init() {
     loadSession();
     injectCSS();
     createUI();
 
-    if (!SKIP_REC) {
-      if (initRec()) {
-        startRec();
-      } else {
-        // Web Speech API 미지원 — 아이콘만 표시, 클릭 시 패널 열림
-        console.info('[WW] 이 브라우저는 Wake Word를 지원하지 않습니다. 아이콘 클릭으로 사용하세요.');
-      }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      console.info('[WW] Web Speech API 미지원 — 아이콘 클릭으로만 사용 가능');
+      return;
     }
+    initRec();
+    startVAD(); // STT 대신 VAD로 조용히 백그라운드 대기 (띵~ 소리 없음)
   }
 
   if (document.readyState === 'loading') {

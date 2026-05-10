@@ -1028,6 +1028,7 @@ function toggleTAMic() {
 function taStartRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { alert('이 브라우저는 음성 인식을 지원하지 않습니다.'); return; }
+  window.wakeWordPause?.(); // wake-word.js VAD/STT 일시 정지 (마이크 충돌 방지)
   if (taRecognition) { try { taRecognition.abort(); } catch {} taRecognition = null; }
   taFinalRcv = false;
   taRecognition = new SR();
@@ -1048,17 +1049,18 @@ function taStartRec() {
       updateTAMicBtn(); clearTimeout(taSilTimer); taSilTimer = setTimeout(taSend, 3000);
     } else { inp.value = interimText; }
   };
-  taRecognition.onerror = (e) => { if (e.error !== 'no-speech') console.warn('[TA STT]', e.error); taRecognizing = false; taFinalRcv = false; updateTAMicBtn(); };
-  taRecognition.onend   = () => { taRecognizing = false; updateTAMicBtn(); };
+  taRecognition.onerror = (e) => { if (e.error !== 'no-speech') console.warn('[TA STT]', e.error); taRecognizing = false; taFinalRcv = false; updateTAMicBtn(); window.wakeWordResume?.(); };
+  taRecognition.onend   = () => { taRecognizing = false; updateTAMicBtn(); window.wakeWordResume?.(); };
   try {
     taRecognition.start();
     taSilTimer = setTimeout(() => { if (taRecognizing) taStopRec(); }, 20000);
-  } catch (e) { console.warn('[TA STT start]', e); taRecognizing = false; updateTAMicBtn(); }
+  } catch (e) { console.warn('[TA STT start]', e); taRecognizing = false; updateTAMicBtn(); window.wakeWordResume?.(); }
 }
 function taStopRec() {
   clearTimeout(taSilTimer); taRecognizing = false; taFinalRcv = false;
   try { taRecognition?.stop(); } catch {}
   updateTAMicBtn();
+  window.wakeWordResume?.(); // wake-word.js VAD 백그라운드 재개
 }
 </script>
 <script src="../js/wake-word.js"></script>
