@@ -267,6 +267,7 @@
       background: rgba(90,90,90,0.78) !important;    /* TTS 재생 중 — 회색 */
       opacity: 0.65;
       cursor: default;
+      pointer-events: none;   /* TTS 중 클릭 완전 차단 */
     }
 
     /* ── 음성 인식 중 실시간 표시 ── */
@@ -394,7 +395,7 @@ let ttsEndTime           = 0;   // TTS 종료 시각 — deaf window 계산용
 let processedResultCount = 0;   // Chrome resultIndex 누적 버그 방지용 자체 카운터
 let silenceTimer         = null;
 const SILENCE_MS         = 3000;
-const POST_TTS_DEAF_MS   = 3500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
+const POST_TTS_DEAF_MS   = 1500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -655,26 +656,29 @@ function initSpeechRecognition() {
   };
 }
 
-// TTS 종료 이후 남은 deaf window를 정확히 기다린 뒤 재시작
+// TTS dead window를 고려한 재시작 예약
 function scheduleRecognitionRestart() {
-  if (isSpeaking) return;
-  const elapsed   = Date.now() - ttsEndTime;
-  const remaining = POST_TTS_DEAF_MS - elapsed;
+  if (isSpeaking || !micOn) return;  // micOn=false이면 예약 안 함
+  const remaining = POST_TTS_DEAF_MS - (Date.now() - ttsEndTime);
   setTimeout(startRecognition, Math.max(200, remaining));
 }
 
 function startRecognition() {
-  if (!recognition || isRecognizing || isSpeaking) return;
-  if (Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return; // deaf window 내 차단
-  processedResultCount = 0;  // 새 세션 시작 시 자체 카운터 리셋
+  if (!recognition || isRecognizing || isSpeaking || !micOn) return;
+  const remaining = POST_TTS_DEAF_MS - (Date.now() - ttsEndTime);
+  if (remaining > 0) {
+    // dead window 내: window가 끝나는 시점에 자동 재시도 예약
+    setTimeout(startRecognition, remaining + 50);
+    return;
+  }
+  processedResultCount = 0;
   try {
     recognition.start();
     isRecognizing = true;
   } catch (err) {
     isRecognizing = false;
     if (err.name === 'InvalidStateError') {
-      // 엔진이 전환 상태일 때 — 500ms 후 재시도
-      setTimeout(startRecognition, 500);
+      setTimeout(startRecognition, 500);  // 엔진 전환 중 — 500ms 후 재시도
     }
   }
 }
@@ -716,7 +720,7 @@ function isGarbageSTT(text) {
     for (let i = 0; i <= words.length - len; i++) {
       const phrase = words.slice(i, i + len).join(' ');
       seenPhrases[phrase] = (seenPhrases[phrase] || 0) + 1;
-      if (seenPhrases[phrase] >= 2) return true;
+      if (seenPhrases[phrase] >= 3) return true;
     }
   }
   return false;
@@ -727,10 +731,22 @@ function submitVoiceInput() {
   const text = interimText.trim();
   interimText = '';
   clearInterim();
-  if (text && text !== lastSentText && !isGarbageSTT(text)) {
-    lastSentText = text;
-    handleUserInput(text);
+  if (!text) return;
+
+  // 반복 쓰레기 텍스트는 조용히 버림 (사용자에게 보이지 않음)
+  if (isGarbageSTT(text)) return;
+  if (text === lastSentText) return;
+
+  lastSentText = text;
+
+  // 전송 후 recognition abort → onend → scheduleRecognitionRestart
+  // Chrome 내부 resultIndex 누적 상태를 완전히 초기화
+  if (micOn && isRecognizing) {
+    isRecognizing = false;
+    try { recognition.abort(); } catch {}
   }
+
+  handleUserInput(text);
 }
 
 function showInterim(text) {
