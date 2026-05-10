@@ -108,6 +108,99 @@
     /* ── 타이머 바 ── */
     #refresh-bar { height: 2px; background: rgba(79,142,247,0.3); width: 100%; position: fixed; bottom: 0; left: 0; z-index: 99; }
     #refresh-fill { height: 100%; background: #4f8ef7; transition: width linear; }
+
+    /* ══ AI 조교 캐릭터 ══ */
+    #ta-char {
+      position: fixed; z-index: 200;
+      top: 60px; right: 0;
+      width: clamp(100px, 22vw, 180px);
+      height: clamp(120px, 25vw, 200px);
+      overflow: hidden; cursor: grab; touch-action: none;
+    }
+    #ta-char-img {
+      width: 100%; height: 200%;
+      object-fit: cover; object-position: top center;
+      pointer-events: none;
+    }
+    #ta-char-fallback { display: none; font-size: 3.5rem; text-align: center; padding-top: 0.8rem; }
+
+    /* ══ AI 조교 채팅 패널 ══ */
+    #ta-panel {
+      position: fixed; z-index: 201;
+      bottom: 0; left: 0; right: 0;
+      max-height: 52vh;
+      background: rgba(12,12,22,0.97);
+      border-top: 1.5px solid rgba(79,142,247,0.35);
+      border-radius: 1.2rem 1.2rem 0 0;
+      display: none; flex-direction: column;
+      backdrop-filter: blur(16px);
+    }
+    #ta-panel.open { display: flex; }
+    #ta-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.7rem 1rem 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.85rem; font-weight: bold; color: #aad; flex-shrink: 0;
+    }
+    #ta-close { background: none; border: none; color: #666; font-size: 1rem; cursor: pointer; padding: 0.2rem 0.5rem; }
+    #ta-msgs {
+      flex: 1; overflow-y: auto; padding: 0.8rem 1rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .ta-msg { max-width: 82%; padding: 0.55rem 0.85rem; border-radius: 1rem; font-size: 0.82rem; line-height: 1.5; word-break: break-word; }
+    .ta-msg-user { align-self: flex-end; background: #2a4a8f; color: #e8f0ff; border-radius: 1rem 1rem 0.3rem 1rem; }
+    .ta-msg-ai  { align-self: flex-start; background: rgba(255,255,255,0.08); color: #ddd; border-radius: 1rem 1rem 1rem 0.3rem; }
+    .ta-thinking { color: #666; font-style: italic; animation: taBlink 1.2s ease-in-out infinite; }
+    @keyframes taBlink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #ta-input-row {
+      display: flex; align-items: flex-end; gap: 0.5rem;
+      padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+    }
+    #ta-inp {
+      flex: 1; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 0.8rem;
+      color: #fff; padding: 0.5rem 0.8rem; font-size: 0.85rem;
+      resize: none; outline: none; min-height: 38px; max-height: 120px;
+    }
+    #ta-inp::placeholder { color: rgba(255,255,255,0.3); }
+    #ta-mic, #ta-send {
+      background: rgba(79,142,247,0.18); border: 1px solid rgba(79,142,247,0.35);
+      border-radius: 0.7rem; color: #fff; width: 38px; height: 38px;
+      cursor: pointer; font-size: 1rem; flex-shrink: 0; transition: background 0.15s;
+    }
+    #ta-send { background: rgba(79,142,247,0.32); }
+    #ta-mic:active, #ta-send:active { background: rgba(79,142,247,0.5); }
+
+    /* ══ 팝업 ══ */
+    #ta-popup {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.72);
+      display: none; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #ta-popup.open { display: flex; }
+    #ta-popup-box {
+      background: #1a1a2e; border-radius: 1.2rem; padding: 1.2rem;
+      width: 100%; max-width: 420px; max-height: 70vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem;
+    }
+    #ta-popup-title { font-size: 1rem; font-weight: bold; color: #4f8ef7; }
+    #ta-popup-body  { font-size: 0.82rem; line-height: 1.6; color: #ccc; }
+    #ta-popup-close {
+      background: rgba(255,255,255,0.1); border: none; border-radius: 0.7rem;
+      color: #aaa; padding: 0.55rem; font-size: 0.82rem; cursor: pointer;
+    }
+    .ta-stu-detail { display: flex; flex-direction: column; gap: 0.5rem; }
+    .ta-stu-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.45rem 0.6rem; background: rgba(255,255,255,0.05);
+      border-radius: 0.5rem; font-size: 0.82rem;
+    }
+    .ta-stu-row strong { color: #fff; }
+    .ta-chat-history { display: flex; flex-direction: column; gap: 0.65rem; }
+    .ta-chat-entry { background: rgba(255,255,255,0.04); border-radius: 0.6rem; padding: 0.6rem; }
+    .ta-chat-q    { color: #cce; font-size: 0.78rem; margin-bottom: 0.2rem; }
+    .ta-chat-a    { color: #aac; font-size: 0.75rem; margin-bottom: 0.15rem; }
+    .ta-chat-meta { color: #555; font-size: 0.68rem; }
   </style>
 </head>
 <body>
@@ -168,7 +261,7 @@
   </div>
   <div class="stat-card s-chat">
     <div class="stat-num" id="stat-chat">-</div>
-    <div class="stat-lbl">AI 튜터</div>
+    <div class="stat-lbl">AI 조교</div>
   </div>
 </div>
 
@@ -176,6 +269,35 @@
 <div class="sec">교육생별 진도 비교</div>
 <div class="student-list" id="student-list">
   <div class="empty-box">데이터 로딩 중...</div>
+</div>
+
+<!-- AI 조교 캐릭터 -->
+<div id="ta-char" title="AI 조교 — 클릭하여 대화">
+  <img id="ta-char-img" src="../assets/instructor_idle.png" alt="AI 조교">
+  <div id="ta-char-fallback">🪖</div>
+</div>
+
+<!-- AI 조교 채팅 패널 -->
+<div id="ta-panel">
+  <div id="ta-panel-header">
+    <span>🤖 AI 조교</span>
+    <button id="ta-close">✕</button>
+  </div>
+  <div id="ta-msgs"></div>
+  <div id="ta-input-row">
+    <textarea id="ta-inp" placeholder="선생님, 무엇이든 물어보세요..." rows="1"></textarea>
+    <button id="ta-mic" title="마이크">🎤</button>
+    <button id="ta-send" title="전송">➤</button>
+  </div>
+</div>
+
+<!-- 액션 팝업 -->
+<div id="ta-popup">
+  <div id="ta-popup-box">
+    <div id="ta-popup-title"></div>
+    <div id="ta-popup-body"></div>
+    <button id="ta-popup-close">닫기</button>
+  </div>
 </div>
 
 <div id="refresh-bar"><div id="refresh-fill" style="width:100%"></div></div>
@@ -353,6 +475,372 @@ function startAutoRefresh() {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+
+<!-- AI 조교 스크립트 -->
+<script>
+// ══════════════════════════════════════════════
+//  AI 조교 (교사 대시보드 전용)
+// ══════════════════════════════════════════════
+
+const TA_PROXY = 'https://orange-resonance-c0d3.gmrfyd912.workers.dev';
+
+const TA_SYSTEM = `당신은 교사 대시보드의 AI 조교입니다. 아래 규칙을 반드시 지키세요.
+
+[역할]
+- 교사를 도와 교육 현황을 파악하고 대시보드를 제어합니다
+- 교사를 항상 '선생님'으로 호칭합니다
+- 간결하고 명확하게 답변합니다
+- 한국어로만 답변합니다
+
+[대시보드 구성]
+- 수업 세션 카드: 수업 시작/종료, 교사 이름 설정. 수업 시작 시 교육생 활동이 집체교육기록에 저장됩니다.
+- 오늘 집체교육 진도: 수업 중 다룬 최대 교재 페이지
+- 오늘 전체 활동 통계: AR 열람, 퀴즈 답변, 동작연습, AI 조교 대화 건수
+- 교육생별 진도 비교: 각 교육생의 개인 학습 진도 및 집체진도 대비 현황
+
+[실행 가능한 액션]
+선생님이 아래 내용을 요청하면 응답 마지막에 해당 태그를 포함하세요. 태그는 화면에 표시되지 않습니다.
+
+- 특정 학생 결과/현황: [ACTION:show_student:학생이름]
+- 전체 교육생 현황: [ACTION:show_all_students]
+- 퀴즈 발송/시작: [ACTION:start_quiz]
+- 오늘 출석/접속 현황: [ACTION:show_attendance]
+- 특정 학생 AI 조교 대화 기록: [ACTION:show_student_chat:학생이름]
+- 취약/뒤처진 학생 목록: [ACTION:show_weak_students]
+
+태그 실행 후에는 "○○○ 학생 현황을 불러왔습니다" 형태로 결과를 안내하세요.`;
+
+let taHistory      = [];
+let taSpeaking     = false;
+let taRecognizing  = false;
+let taFinalRcv     = false;
+let taSilTimer     = null;
+let taRecognition  = null;
+
+// ── 초기화 ──
+document.addEventListener('DOMContentLoaded', () => {
+  initTAChar();
+  initTAPanel();
+  initTAMic();
+});
+
+// ── 캐릭터 드래그 ──
+function initTAChar() {
+  const el = document.getElementById('ta-char');
+  document.getElementById('ta-char-img').onerror = () => {
+    document.getElementById('ta-char-img').style.display = 'none';
+    document.getElementById('ta-char-fallback').style.display = 'block';
+  };
+
+  const saved = JSON.parse(localStorage.getItem('taCharPos') || 'null');
+  if (saved) {
+    el.style.top = saved.top + 'px';
+    el.style.right = 'auto';
+    el.style.left = saved.left + 'px';
+  }
+
+  let dragging = false, startX, startY, startL, startT;
+
+  function onDown(e) {
+    const pt = e.touches ? e.touches[0] : e;
+    startX = pt.clientX; startY = pt.clientY;
+    const r = el.getBoundingClientRect();
+    startL = r.left; startT = r.top;
+    dragging = false;
+    e.preventDefault();
+  }
+  function onMove(e) {
+    const pt = e.touches ? e.touches[0] : e;
+    const dx = pt.clientX - startX, dy = pt.clientY - startY;
+    if (!dragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragging = true;
+    if (!dragging) return;
+    const newL = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startL + dx));
+    const newT = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startT + dy));
+    el.style.left = newL + 'px'; el.style.right = 'auto'; el.style.top = newT + 'px';
+  }
+  function onUp() {
+    if (!dragging) {
+      toggleTAPanel();
+    } else {
+      const r = el.getBoundingClientRect();
+      localStorage.setItem('taCharPos', JSON.stringify({ left: r.left, top: r.top }));
+    }
+    dragging = false;
+  }
+
+  el.addEventListener('mousedown',  onDown);
+  el.addEventListener('touchstart', onDown, { passive: false });
+  document.addEventListener('mousemove',  onMove);
+  document.addEventListener('touchmove',  onMove, { passive: false });
+  document.addEventListener('mouseup',  onUp);
+  document.addEventListener('touchend',  onUp);
+}
+
+// ── 채팅 패널 ──
+function initTAPanel() {
+  document.getElementById('ta-close').addEventListener('click', closeTAPanel);
+  document.getElementById('ta-popup-close').addEventListener('click', closeTAPopup);
+  document.getElementById('ta-send').addEventListener('click', taSend);
+
+  const inp = document.getElementById('ta-inp');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); taSend(); } });
+  inp.addEventListener('input',   () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; });
+
+  taAddMsg('ai', '안녕하세요 선생님! 교육생 현황, 퀴즈 발송, 학습 이력 조회 등을 말씀해 주세요. 🎓');
+}
+
+function toggleTAPanel() {
+  const p = document.getElementById('ta-panel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) document.getElementById('ta-inp').focus();
+}
+function closeTAPanel() { document.getElementById('ta-panel').classList.remove('open'); }
+
+function taAddMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = `ta-msg ta-msg-${role}`;
+  el.textContent = text;
+  const msgs = document.getElementById('ta-msgs');
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function taThinking(on) {
+  const id = 'ta-thinking-bubble';
+  if (on) {
+    if (document.getElementById(id)) return;
+    const el = document.createElement('div');
+    el.id = id; el.className = 'ta-msg ta-msg-ai ta-thinking';
+    el.textContent = '...';
+    const msgs = document.getElementById('ta-msgs');
+    msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+  } else {
+    document.getElementById(id)?.remove();
+  }
+}
+
+// ── 전송 ──
+async function taSend() {
+  const inp  = document.getElementById('ta-inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = ''; inp.style.height = 'auto';
+  clearTimeout(taSilTimer);
+
+  taAddMsg('user', text);
+  taHistory.push({ role: 'user', parts: [{ text }] });
+  taThinking(true);
+
+  const raw = await taCallGemini();
+  taThinking(false);
+
+  const { clean, actions } = parseActions(raw);
+  taAddMsg('ai', clean);
+  taHistory.push({ role: 'model', parts: [{ text: clean }] });
+  if (taHistory.length > 40) taHistory.splice(0, 2);
+
+  taSpeak(clean);
+  actions.forEach(executeAction);
+}
+
+// ── Gemini API ──
+async function taCallGemini() {
+  try {
+    const res = await fetch(TA_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: TA_SYSTEM }] },
+        contents: taHistory,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
+      })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '죄송합니다, 다시 시도해주세요.';
+  } catch (e) {
+    console.warn('[TA Gemini]', e.message);
+    return '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+  }
+}
+
+// ── 액션 태그 파싱 ──
+function parseActions(text) {
+  const actions = [];
+  const clean = text.replace(/\[ACTION:([^\]]+)\]/g, (_, tag) => { actions.push(tag); return ''; }).trim();
+  return { clean, actions };
+}
+
+// ── 액션 실행 ──
+async function executeAction(tag) {
+  const colonIdx = tag.indexOf(':');
+  const verb = colonIdx === -1 ? tag : tag.slice(0, colonIdx);
+  const param = colonIdx === -1 ? '' : tag.slice(colonIdx + 1);
+
+  if (verb === 'show_student')      await showStudentPopup(param);
+  else if (verb === 'show_all_students') document.getElementById('student-list')?.scrollIntoView({ behavior: 'smooth' });
+  else if (verb === 'start_quiz')   await startQuizAction();
+  else if (verb === 'show_attendance')  await showAttendancePopup();
+  else if (verb === 'show_student_chat') await showStudentChatPopup(param);
+  else if (verb === 'show_weak_students') await showWeakStudentsPopup();
+}
+
+// ── 팝업 ──
+function openTAPopup(title, html) {
+  document.getElementById('ta-popup-title').textContent = title;
+  document.getElementById('ta-popup-body').innerHTML = html;
+  document.getElementById('ta-popup').classList.add('open');
+}
+function closeTAPopup() { document.getElementById('ta-popup').classList.remove('open'); }
+
+async function showStudentPopup(name) {
+  if (!name) return;
+  try {
+    const [students, classPage] = await Promise.all([
+      SheetsManager.getAllStudentProgressToday(),
+      SheetsManager.getTodayClassProgress()
+    ]);
+    const s = students.find(s => s.studentName === name || s.studentName.includes(name));
+    if (!s) { openTAPopup(esc(name) + ' 학생', '<p style="color:#888">오늘 활동 기록이 없습니다.</p>'); return; }
+    const behind = classPage > 0 && classPage - s.personalPage >= 2;
+    openTAPopup(esc(s.studentName) + ' 학생 현황', `
+      <div class="ta-stu-detail">
+        <div class="ta-stu-row"><span>개인 진도</span><strong>${s.personalPage}페이지</strong></div>
+        <div class="ta-stu-row"><span>집체 진도</span><strong>${classPage || '-'}페이지</strong></div>
+        <div class="ta-stu-row"><span>상태</span><strong style="color:${behind ? '#f88' : '#27ae60'}">${behind ? '⚠️ ' + (classPage - s.personalPage) + '페이지 뒤처짐' : '✅ 정상'}</strong></div>
+      </div>`);
+  } catch { openTAPopup(esc(name) + ' 학생', '<p>데이터를 불러올 수 없습니다.</p>'); }
+}
+
+async function startQuizAction() {
+  try {
+    await FirebaseManager.launchQuiz({ type: 'ox', launchedBy: _teacherName || '교사' });
+    taAddMsg('ai', '선생님, 퀴즈를 발송했습니다! 교육생들에게 알림이 전송됩니다. 📝');
+  } catch { taAddMsg('ai', '퀴즈 발송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'); }
+}
+
+async function showAttendancePopup() {
+  try {
+    const students = await SheetsManager.getAllStudentProgressToday();
+    if (!students.length) { openTAPopup('오늘 출석 현황', '<p style="color:#888">오늘 접속한 교육생이 없습니다.</p>'); return; }
+    const rows = students.map(s => `<div class="ta-stu-row"><span>${esc(s.studentName)}</span><strong>${s.personalPage}p</strong></div>`).join('');
+    openTAPopup(`오늘 출석 현황 (${students.length}명)`, `<div class="ta-stu-detail">${rows}</div>`);
+  } catch { openTAPopup('오늘 출석 현황', '<p>데이터를 불러올 수 없습니다.</p>'); }
+}
+
+async function showStudentChatPopup(name) {
+  if (!name) return;
+  try {
+    const history = await SheetsManager.loadRecentHistory(name, 10);
+    if (!history.length) { openTAPopup(esc(name) + ' 대화 기록', '<p style="color:#888">대화 기록이 없습니다.</p>'); return; }
+    const rows = history.map(h => `
+      <div class="ta-chat-entry">
+        <div class="ta-chat-q">Q: ${esc(h.question)}</div>
+        <div class="ta-chat-a">A: ${esc(h.answer.slice(0, 120))}${h.answer.length > 120 ? '...' : ''}</div>
+        <div class="ta-chat-meta">${esc(h.date)} ${esc(h.time)}${h.pageNumber ? ' · ' + h.pageNumber + 'p' : ''}</div>
+      </div>`).join('');
+    openTAPopup(esc(name) + ' AI 조교 대화 기록', `<div class="ta-chat-history">${rows}</div>`);
+  } catch { openTAPopup(esc(name) + ' 대화 기록', '<p>데이터를 불러올 수 없습니다.</p>'); }
+}
+
+async function showWeakStudentsPopup() {
+  try {
+    const [students, classPage] = await Promise.all([
+      SheetsManager.getAllStudentProgressToday(),
+      SheetsManager.getTodayClassProgress()
+    ]);
+    const weak = students.filter(s => classPage > 0 && classPage - s.personalPage >= 2)
+                         .sort((a, b) => a.personalPage - b.personalPage);
+    if (!weak.length) { openTAPopup('취약 교육생', '<p style="color:#27ae60">⚠️ 뒤처진 교육생이 없습니다. 훌륭합니다!</p>'); return; }
+    const rows = weak.map(s => `<div class="ta-stu-row" style="color:#f88"><span>${esc(s.studentName)}</span><strong>-${classPage - s.personalPage}p (${s.personalPage}p)</strong></div>`).join('');
+    openTAPopup(`취약 교육생 (${weak.length}명)`, `<div class="ta-stu-detail">${rows}</div>`);
+  } catch { openTAPopup('취약 교육생', '<p>데이터를 불러올 수 없습니다.</p>'); }
+}
+
+// ── TTS ──
+function taSpeak(text) {
+  if (!window.speechSynthesis || !text) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text.slice(0, 200));
+  utt.lang = 'ko-KR'; utt.rate = 1.05;
+  taSpeaking = true; updateTAMicBtn();
+  utt.onend = utt.onerror = () => { taSpeaking = false; updateTAMicBtn(); };
+  window.speechSynthesis.speak(utt);
+}
+
+// ── STT (push-to-talk) ──
+function initTAMic() {
+  document.getElementById('ta-mic').addEventListener('click', toggleTAMic);
+}
+
+function updateTAMicBtn() {
+  const btn = document.getElementById('ta-mic');
+  if (!btn) return;
+  if (taSpeaking)       { btn.textContent = '🔊'; btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; }
+  else if (taRecognizing){ btn.textContent = '⏹'; btn.style.opacity = '1';   btn.style.pointerEvents = ''; }
+  else                   { btn.textContent = '🎤'; btn.style.opacity = '1';   btn.style.pointerEvents = ''; }
+}
+
+function toggleTAMic() {
+  if (taSpeaking) return;
+  if (taRecognizing) taStopRec(); else taStartRec();
+}
+
+function taStartRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('이 브라우저는 음성 인식을 지원하지 않습니다.'); return; }
+  if (taRecognition) { try { taRecognition.abort(); } catch {} taRecognition = null; }
+  taFinalRcv = false;
+
+  taRecognition = new SR();
+  taRecognition.lang = 'ko-KR';
+  taRecognition.continuous = false;
+  taRecognition.interimResults = true;
+
+  taRecognition.onstart = () => { taRecognizing = true; updateTAMicBtn(); };
+
+  taRecognition.onresult = (e) => {
+    if (taFinalRcv) return;
+    const inp = document.getElementById('ta-inp');
+    let finalText = '', interimText = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t; else interimText += t;
+    }
+    if (finalText) {
+      taFinalRcv = true; taRecognizing = false;
+      try { taRecognition.abort(); } catch {}
+      inp.value = finalText;
+      inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+      updateTAMicBtn();
+      clearTimeout(taSilTimer);
+      taSilTimer = setTimeout(taSend, 3000);
+    } else {
+      inp.value = interimText;
+    }
+  };
+
+  taRecognition.onerror = (e) => {
+    if (e.error !== 'no-speech') console.warn('[TA STT]', e.error);
+    taRecognizing = false; taFinalRcv = false; updateTAMicBtn();
+  };
+  taRecognition.onend = () => { taRecognizing = false; updateTAMicBtn(); };
+
+  try {
+    taRecognition.start();
+    taSilTimer = setTimeout(() => { if (taRecognizing) taStopRec(); }, 20000);
+  } catch (e) {
+    console.warn('[TA STT start]', e);
+    taRecognizing = false; updateTAMicBtn();
+  }
+}
+
+function taStopRec() {
+  clearTimeout(taSilTimer);
+  taRecognizing = false; taFinalRcv = false;
+  try { taRecognition?.stop(); } catch {}
+  updateTAMicBtn();
 }
 </script>
 </body>

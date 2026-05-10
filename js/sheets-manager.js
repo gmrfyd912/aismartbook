@@ -172,14 +172,14 @@ const SheetsManager = (() => {
     return MOTION_PAGE_MAP[motionName] || 0;
   }
 
-  // AI 튜터 대화 한 턴 저장
+  // AI 조교 대화 한 턴 저장
   async function saveConversation(studentName, question, answer) {
     const page = extractPage(question);
     try {
       await appendRow('대화기록', [studentName, nowDate(), nowTime(), question, answer, page]);
       if (page) {
         _updateProgress(studentName, page);
-        _saveClassRecord('AI튜터질문', page);
+        _saveClassRecord('AI조교질문', page);
       }
     } catch (e) { console.warn('[Sheets] 대화기록 저장 실패:', e.message); }
   }

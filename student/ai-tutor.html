@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta http-equiv="Cache-Control" content="no-store">
-  <title>AI 튜터</title>
+  <title>AI 조교</title>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
@@ -295,7 +295,7 @@
 <!-- 상단바 -->
 <div id="top-bar">
   <button id="back-btn" onclick="goHome()">← 홈</button>
-  <div id="page-title">🤖 AI 튜터</div>
+  <div id="page-title">🤖 AI 조교</div>
   <span class="top-badge" id="unit-label">1단원</span>
   <span class="top-badge" id="conc-badge">집중 100%</span>
   <button class="top-icon-btn" id="mic-mode-btn" onclick="toggleMic()" title="마이크 OFF — 클릭하여 켜기">🎤</button>
@@ -310,7 +310,7 @@
 <!-- 집체교육 배너 (hidden; overlay로 대체) -->
 <div id="class-banner" style="display:none">🏫 집체교육 중 — 음성 자동 음소거</div>
 
-<!-- 수업중 AI튜터 비활성화 오버레이 -->
+<!-- 수업중 AI조교 비활성화 오버레이 -->
 <div id="class-overlay" style="
   display:none; position:fixed; inset:0;
   background:rgba(0,0,0,0.84); z-index:50;
@@ -320,7 +320,7 @@
   <div style="font-size:3.5rem;margin-bottom:1rem">🏫</div>
   <div style="font-size:1.1rem;font-weight:bold;margin-bottom:0.6rem">수업 진행 중입니다</div>
   <div style="font-size:0.85rem;color:#aaa;line-height:1.65;max-width:280px">
-    AI 튜터은 수업 종료 후 이용 가능합니다.
+    AI 조교는 수업 종료 후 이용 가능합니다.
   </div>
 </div>
 
@@ -345,7 +345,7 @@
 <div id="char-container" style="background:transparent!important;background-color:transparent!important;mix-blend-mode:normal;-webkit-background-clip:unset;">
   <img id="char-img"
     src="../assets/instructor_idle.png?v=2"
-    alt="AI 튜터"
+    alt="AI 조교"
     style="background:transparent!important;background-color:transparent!important;mix-blend-mode:normal;-webkit-background-clip:unset;"
     onerror="this.style.display='none';document.getElementById('char-fallback').style.display='block'">
   <div id="char-fallback">🪖</div>
@@ -789,7 +789,7 @@ async function callGemini(query) {
       '\n이 기록을 참고하여 학생의 학습 맥락을 자연스럽게 활용하되, 기록을 그대로 인용하지는 않는다.';
   }
 
-  const systemText = `당신은 친절한 AI 튜터입니다. 다음 규칙을 반드시 지키세요.
+  const systemText = `당신은 친절한 AI 조교입니다. 다음 규칙을 반드시 지키세요.
 
 [공통 규칙]
 - 항상 자연스러운 대화체로 답변한다
@@ -1064,7 +1064,7 @@ function checkFrownIntervention(frowning) {
 }
 
 // ══════════════════════════════════════════════
-//  수업중 AI튜터 비활성화 / 활성화
+//  수업중 AI조교 비활성화 / 활성화
 // ══════════════════════════════════════════════
 function disableAITutor() {
   if (isClassMode) return;

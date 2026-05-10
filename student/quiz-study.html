@@ -61,7 +61,7 @@
       cursor: pointer; width: calc(100% - 2rem);
     }
 
-    /* AI 튜터 말풍선 */
+    /* AI 조교 말풍선 */
     .tutor-bubble {
       margin: 0.8rem 1rem 0;
       background: #1a1a2e; border-radius: 1rem; padding: 0.9rem 1rem;
@@ -293,7 +293,7 @@
     if (result.relatedUnit) {
       link.href = `./ai-tutor.html?unit=${result.relatedUnit}`;
       link.style.display = 'block';
-      link.textContent = `${result.relatedUnit}단원 AI 튜터에게 질문하기 →`;
+      link.textContent = `${result.relatedUnit}단원 AI 조교에게 질문하기 →`;
     } else {
       link.style.display = 'none';
     }
@@ -323,7 +323,7 @@
     const color = score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e55';
     const msg   = score >= 80 ? '훌륭해요! 신호수 이론을 잘 이해하고 있습니다!' :
                   score >= 60 ? `잘 하셨어요! 틀린 ${wrongAnswers.length}문제를 다시 복습해보세요.` :
-                                `조금 더 공부가 필요해요. AI 튜터에게 도움을 요청해보세요!`;
+                                `조금 더 공부가 필요해요. AI 조교에게 도움을 요청해보세요!`;
 
     document.getElementById('c-icon').textContent = icon;
     document.getElementById('c-score').textContent = `${correct} / ${total}`;

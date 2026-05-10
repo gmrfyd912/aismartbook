@@ -1,2 +1,6 @@
 service-account.json
+*.json
+!package.json
 .env
+.claude/
+package-lock.json

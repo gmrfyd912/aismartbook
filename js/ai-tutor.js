@@ -1,4 +1,4 @@
-// AI 튜터 엔진 — Gemini 2.0 Flash API + 키워드 매칭 fallback
+// AI 조교 엔진 — Gemini 2.0 Flash API + 키워드 매칭 fallback
 const AiTutor = (() => {
   let speechSynthesis = window.speechSynthesis;
   let recognition = null;
@@ -10,7 +10,7 @@ const AiTutor = (() => {
 
   const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
   const GEMINI_MODEL  = 'gemini-2.5-flash';
-  const GEMINI_SYSTEM = `당신은 친절한 AI 튜터입니다. 다음 규칙을 반드시 지키세요.
+  const GEMINI_SYSTEM = `당신은 친절한 AI 조교입니다. 다음 규칙을 반드시 지키세요.
 
 [공통 규칙]
 - 항상 자연스러운 대화체로 답변한다
