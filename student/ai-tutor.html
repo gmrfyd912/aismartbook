@@ -112,7 +112,7 @@
       flex-direction: column;
       gap: 0.38rem;
       padding: 0 0.65rem 0.65rem;
-      padding-right: clamp(80px, 22vw, 120px); /* 캐릭터(20vw) 오른쪽 여백 */
+      padding-right: 88px; /* 캐릭터(80px) 오른쪽 여백 */
     }
 
     /* 빠른 질문 버튼 */
@@ -217,10 +217,11 @@
     #char-container {
       position: fixed;
       z-index: 9999;
-      top: 3rem;           /* JS가 헤더 실제 높이로 덮어씀 */
+      top: 48px;    /* JS가 헤더 실제 높이로 덮어씀 */
       right: 0;
-      width: clamp(72px, 20vw, 110px);   /* 화면 너비 약 20% */
-      height: clamp(94px, 26vw, 143px);  /* 컨테이너 = 이미지 높이의 50% → 상반신 노출 */
+      left: auto;
+      width: 80px;  /* 고정 소형 — 모바일 화면의 약 1/5 */
+      height: 110px;/* 상반신만 노출 (이미지 220px의 50%) */
       overflow: hidden;
       cursor: grab;
       touch-action: none;
@@ -231,14 +232,14 @@
     }
     #char-container:active { cursor: grabbing; }
     @keyframes slideDown {
-      from { transform: translateY(-60px); opacity: 0; }
+      from { transform: translateY(-40px); opacity: 0; }
       to   { transform: translateY(0);     opacity: 1; }
     }
 
-    /* 캐릭터 이미지 — 전신 렌더(컨테이너 2배 높이), 컨테이너가 상반신 50%만 노출 */
+    /* 캐릭터 이미지 — 220px 전신 렌더, 컨테이너(110px)가 상반신만 노출 */
     #char-img {
       width: 100%;
-      height: clamp(188px, 52vw, 286px); /* 컨테이너 높이의 2배 */
+      height: 220px;
       object-fit: cover;
       object-position: top center;
       user-select: none;
@@ -1151,10 +1152,11 @@ function initCharDrag() {
     el.style.left  = 'auto';
   }
 
-  // 저장된 위치 복원 — 헤더 영역 침범 시 초기값으로 대체
+  // 저장된 위치 복원 — 헤더 침범 시 또는 화면 밖이면 초기값으로 대체
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem('charPos')); } catch {}
-  if (saved && typeof saved.left === 'number' && saved.top >= headerH()) {
+  try { saved = JSON.parse(localStorage.getItem('charPos2')); } catch {}
+  if (saved && typeof saved.left === 'number' && saved.top >= headerH()
+      && saved.left >= 0 && saved.left <= window.innerWidth - el.offsetWidth) {
     el.style.right = 'auto';
     el.style.left  = saved.left + 'px';
     el.style.top   = saved.top  + 'px';
@@ -1197,7 +1199,7 @@ function initCharDrag() {
     dragging = false;
     el.style.opacity = '1';
     const rect = el.getBoundingClientRect();
-    try { localStorage.setItem('charPos', JSON.stringify({ left: rect.left, top: rect.top })); } catch {}
+    try { localStorage.setItem('charPos2', JSON.stringify({ left: rect.left, top: rect.top })); } catch {}
   }
 
   el.addEventListener('mousedown',  onDragStart);
