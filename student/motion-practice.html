@@ -145,8 +145,12 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+<script src="../js/config.js"></script>
 <script src="../js/session-manager.js"></script>
 <script src="../js/data-manager.js"></script>
+<script src="../js/firebase-manager.js"></script>
 <script src="../js/ai-tutor.js"></script>
 <script src="../js/sheets-manager.js"></script>
 
@@ -176,6 +180,12 @@
   SessionManager.requireSession(async (session) => {
     document.getElementById('sm-user-name').textContent = session.name;
     AiTutor.init();
+
+    await FirebaseManager.init();
+    FirebaseManager.watchClassMode(async active => {
+      const name = active ? (await FirebaseManager.getTeacherName() || '교사') : '';
+      SheetsManager.setClassContext(active, name);
+    });
     AiTutor.setVoiceEnabled(true);
 
     try {

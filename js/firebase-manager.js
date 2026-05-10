@@ -134,6 +134,27 @@ const FirebaseManager = (() => {
     return r.set(result);
   }
 
+  // 교사 이름 / 현재 수업 페이지 관리
+  function setTeacherName(name) {
+    const r = ref('session/teacherName');
+    if (!r) return Promise.resolve();
+    return r.set(name || null);
+  }
+
+  async function getTeacherName() {
+    const r = ref('session/teacherName');
+    if (!r) return null;
+    const snap = await r.once('value');
+    return snap.val() || null;
+  }
+
+  function watchTeacherName(callback) {
+    const r = ref('session/teacherName');
+    if (!r) { callback(null); return () => {}; }
+    r.on('value', snap => callback(snap.val() || null));
+    return () => r.off('value');
+  }
+
   // Firebase key에 허용되지 않는 문자 제거
   function sanitizeKey(str) {
     return String(str).replace(/[.#$\[\]/]/g, '_');
@@ -153,6 +174,7 @@ const FirebaseManager = (() => {
     watchActiveQuiz, launchQuiz, clearQuiz,
     saveStudentData, watchStudents,
     saveQuizResult, watchQuizResults,
-    saveMotionResult, updateConcentration
+    saveMotionResult, updateConcentration,
+    setTeacherName, getTeacherName, watchTeacherName
   };
 })();

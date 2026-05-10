@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>교사 대시보드</title>
+
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0f; color: #fff; font-family: sans-serif; min-height: 100dvh; padding-bottom: 3rem; }
+
+    /* ── 헤더 ── */
+    .header {
+      padding: 1rem 1rem 0.7rem;
+      background: linear-gradient(to bottom, rgba(10,10,20,1), transparent);
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px);
+    }
+    .header h1 { font-size: 1.05rem; display: flex; align-items: center; gap: 0.4rem; }
+    .refresh-info { font-size: 0.68rem; color: #444; }
+    .header-right { display: flex; align-items: center; gap: 0.6rem; }
+    #refresh-btn {
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+      color: #aaa; border-radius: 2rem; padding: 0.3rem 0.8rem;
+      font-size: 0.72rem; cursor: pointer;
+    }
+    #refresh-btn:active { background: rgba(255,255,255,0.18); }
+
+    /* ── 세션 카드 ── */
+    .session-card {
+      margin: 0.8rem 1rem 0;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 1.5px solid rgba(231,76,60,0.35);
+      border-radius: 1.2rem; padding: 1.1rem;
+    }
+    .session-card.active { border-color: rgba(39,174,96,0.5); }
+    .sc-row { display: flex; align-items: center; gap: 0.8rem; }
+    .sc-icon { font-size: 1.8rem; flex-shrink: 0; }
+    .sc-info { flex: 1; }
+    .sc-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 0.2rem; }
+    .sc-sub   { font-size: 0.75rem; color: #888; }
+    .sc-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
+
+    #teacher-name-input {
+      flex: 1; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.18); border-radius: 0.7rem;
+      color: #fff; padding: 0.45rem 0.75rem; font-size: 0.82rem; outline: none;
+    }
+    #teacher-name-input::placeholder { color: rgba(255,255,255,0.3); }
+    #start-btn, #stop-btn {
+      padding: 0.45rem 1.1rem; border: none; border-radius: 0.7rem;
+      font-size: 0.82rem; font-weight: bold; cursor: pointer;
+    }
+    #start-btn { background: #27ae60; color: #fff; }
+    #stop-btn  { background: rgba(231,76,60,0.8); color: #fff; }
+
+    /* ── 섹션 타이틀 ── */
+    .sec { margin: 1.2rem 1rem 0.55rem; font-size: 0.72rem; color: #555; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* ── 집체진도 카드 ── */
+    .progress-card {
+      margin: 0 1rem; background: #1a1a2e; border-radius: 1rem; padding: 1rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .pc-page { font-size: 2.6rem; font-weight: bold; color: #4f8ef7; line-height: 1; }
+    .pc-label { font-size: 0.7rem; color: #888; margin-top: 0.2rem; }
+    .pc-right { flex: 1; }
+    .pc-bar-wrap { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 0.4rem; }
+    .pc-bar { height: 100%; background: #4f8ef7; border-radius: 4px; transition: width 0.5s; }
+    .pc-caption { font-size: 0.72rem; color: #aaa; }
+
+    /* ── 통계 그리드 ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin: 0 1rem; }
+    .stat-card { background: #1a1a2e; border-radius: 0.9rem; padding: 0.75rem 0.5rem; text-align: center; }
+    .stat-num  { font-size: 1.6rem; font-weight: bold; }
+    .stat-lbl  { font-size: 0.62rem; color: #666; margin-top: 0.15rem; }
+    .stat-card.s-ar     .stat-num { color: #9b59b6; }
+    .stat-card.s-quiz   .stat-num { color: #e67e22; }
+    .stat-card.s-motion .stat-num { color: #27ae60; }
+    .stat-card.s-chat   .stat-num { color: #4f8ef7; }
+
+    /* ── 학생 진도 목록 ── */
+    .student-list { display: flex; flex-direction: column; gap: 0.55rem; margin: 0 1rem; }
+    .stu-item { background: #1a1a2e; border-radius: 0.9rem; padding: 0.75rem 0.85rem; }
+    .stu-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+    .stu-name { font-size: 0.85rem; font-weight: bold; }
+    .stu-badge {
+      font-size: 0.65rem; padding: 0.15rem 0.5rem;
+      border-radius: 2rem; background: rgba(79,142,247,0.2); color: #7ab;
+    }
+    .stu-badge.warn { background: rgba(231,76,60,0.25); color: #f88; }
+    .stu-bars { display: flex; flex-direction: column; gap: 0.28rem; }
+    .bar-row { display: flex; align-items: center; gap: 0.5rem; }
+    .bar-lbl { font-size: 0.6rem; color: #666; width: 40px; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .bar-fill  { height: 100%; border-radius: 3px; transition: width 0.5s; }
+    .bar-fill.class-bar  { background: rgba(79,142,247,0.7); }
+    .bar-fill.personal-bar { background: #27ae60; }
+    .bar-fill.warn-bar { background: #e74c3c; }
+    .bar-page { font-size: 0.65rem; color: #888; width: 28px; text-align: right; flex-shrink: 0; }
+
+    /* ── 빈 상태 ── */
+    .empty-box { text-align: center; color: #444; font-size: 0.82rem; padding: 1.5rem; }
+
+    /* ── 타이머 바 ── */
+    #refresh-bar { height: 2px; background: rgba(79,142,247,0.3); width: 100%; position: fixed; bottom: 0; left: 0; z-index: 99; }
+    #refresh-fill { height: 100%; background: #4f8ef7; transition: width linear; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 교사 대시보드</h1>
+  <div class="header-right">
+    <span class="refresh-info" id="refresh-info">--</span>
+    <button id="refresh-btn" onclick="loadAll()">↻ 새로고침</button>
+  </div>
+</div>
+
+<!-- 세션 카드 -->
+<div class="session-card" id="session-card">
+  <div class="sc-row">
+    <div class="sc-icon" id="sc-icon">🏫</div>
+    <div class="sc-info">
+      <div class="sc-title" id="sc-title">수업 시작 전</div>
+      <div class="sc-sub"  id="sc-sub">교사 이름을 입력하고 수업을 시작하세요</div>
+    </div>
+  </div>
+  <div class="sc-actions" id="sc-actions-start">
+    <input id="teacher-name-input" type="text" placeholder="교사 이름" maxlength="20">
+    <button id="start-btn" onclick="startClass()">수업 시작</button>
+  </div>
+  <div class="sc-actions" id="sc-actions-stop" style="display:none">
+    <button id="stop-btn" onclick="stopClass()" style="width:100%">수업 종료</button>
+  </div>
+</div>
+
+<!-- 오늘 집체진도 -->
+<div class="sec">오늘 집체교육 진도</div>
+<div class="progress-card">
+  <div>
+    <div class="pc-page" id="class-page-num">-</div>
+    <div class="pc-label">페이지</div>
+  </div>
+  <div class="pc-right">
+    <div class="pc-bar-wrap"><div class="pc-bar" id="class-page-bar" style="width:0%"></div></div>
+    <div class="pc-caption" id="class-page-caption">오늘 수업 활동 없음</div>
+  </div>
+</div>
+
+<!-- 오늘 통계 -->
+<div class="sec">오늘 전체 활동</div>
+<div class="stat-grid">
+  <div class="stat-card s-ar">
+    <div class="stat-num" id="stat-ar">-</div>
+    <div class="stat-lbl">AR 열람</div>
+  </div>
+  <div class="stat-card s-quiz">
+    <div class="stat-num" id="stat-quiz">-</div>
+    <div class="stat-lbl">퀴즈 답변</div>
+  </div>
+  <div class="stat-card s-motion">
+    <div class="stat-num" id="stat-motion">-</div>
+    <div class="stat-lbl">동작연습</div>
+  </div>
+  <div class="stat-card s-chat">
+    <div class="stat-num" id="stat-chat">-</div>
+    <div class="stat-lbl">AI 튜터</div>
+  </div>
+</div>
+
+<!-- 교육생별 진도 -->
+<div class="sec">교육생별 진도 비교</div>
+<div class="student-list" id="student-list">
+  <div class="empty-box">데이터 로딩 중...</div>
+</div>
+
+<div id="refresh-bar"><div id="refresh-fill" style="width:100%"></div></div>
+
+<script src="../js/config.js"></script>
+<script src="../js/firebase-manager.js"></script>
+<script src="../js/sheets-manager.js"></script>
+
+<script>
+const TOTAL_PAGES   = 12;   // 교재 전체 페이지 수
+const REFRESH_SEC   = 30;   // 자동 새로고침 간격 (초)
+
+let _teacherName   = '';
+let _classActive   = false;
+let _refreshTimer  = null;
+let _countdownTimer = null;
+let _secondsLeft   = REFRESH_SEC;
+
+// ── Firebase 초기화 ──
+(async () => {
+  await FirebaseManager.init();
+
+  // 현재 수업 세션 상태 읽기
+  FirebaseManager.watchClassMode(active => {
+    _classActive = active;
+    if (active) {
+      FirebaseManager.getTeacherName().then(name => {
+        _teacherName = name || '';
+        renderSessionActive(_teacherName);
+      });
+    } else {
+      renderSessionIdle();
+    }
+  });
+
+  await loadAll();
+  startAutoRefresh();
+})();
+
+// ── 수업 시작 / 종료 ──
+async function startClass() {
+  const name = document.getElementById('teacher-name-input').value.trim();
+  if (!name) { alert('교사 이름을 입력해주세요.'); return; }
+  _teacherName = name;
+  await FirebaseManager.setTeacherName(name);
+  await FirebaseManager.setClassSession(true);
+  await SheetsManager.saveClassRecord(name, '수업시작', '', '');
+  renderSessionActive(name);
+  loadAll();
+}
+
+async function stopClass() {
+  if (!confirm('수업을 종료하시겠습니까?')) return;
+  await SheetsManager.saveClassRecord(_teacherName, '수업종료', '', '');
+  await FirebaseManager.setClassSession(false);
+  await FirebaseManager.setTeacherName(null);
+  _teacherName = '';
+  renderSessionIdle();
+  loadAll();
+}
+
+function renderSessionActive(name) {
+  const card = document.getElementById('session-card');
+  card.classList.add('active');
+  document.getElementById('sc-icon').textContent  = '🟢';
+  document.getElementById('sc-title').textContent = `수업 진행 중 — ${name} 교사`;
+  document.getElementById('sc-sub').textContent   = '학생 활동이 집체교육기록에 자동 저장됩니다';
+  document.getElementById('sc-actions-start').style.display = 'none';
+  document.getElementById('sc-actions-stop').style.display  = '';
+}
+
+function renderSessionIdle() {
+  const card = document.getElementById('session-card');
+  card.classList.remove('active');
+  document.getElementById('sc-icon').textContent  = '🏫';
+  document.getElementById('sc-title').textContent = '수업 시작 전';
+  document.getElementById('sc-sub').textContent   = '교사 이름을 입력하고 수업을 시작하세요';
+  document.getElementById('sc-actions-start').style.display = '';
+  document.getElementById('sc-actions-stop').style.display  = 'none';
+}
+
+// ── 데이터 로드 ──
+async function loadAll() {
+  document.getElementById('refresh-info').textContent = '로딩 중…';
+  try {
+    const [classPage, students, stats] = await Promise.all([
+      SheetsManager.getTodayClassProgress(),
+      SheetsManager.getAllStudentProgressToday(),
+      SheetsManager.getTodayStats()
+    ]);
+    renderClassProgress(classPage);
+    renderStudents(students, classPage);
+    renderStats(stats);
+    const now = new Date();
+    document.getElementById('refresh-info').textContent =
+      `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} 갱신`;
+  } catch (e) {
+    document.getElementById('refresh-info').textContent = '오류';
+    console.warn('[Dashboard] 로드 실패:', e);
+  }
+}
+
+function renderClassProgress(classPage) {
+  const pct = classPage ? Math.min(100, Math.round(classPage / TOTAL_PAGES * 100)) : 0;
+  document.getElementById('class-page-num').textContent = classPage || '-';
+  document.getElementById('class-page-bar').style.width = pct + '%';
+  document.getElementById('class-page-caption').textContent =
+    classPage ? `전체 ${TOTAL_PAGES}페이지 중 ${classPage}페이지 (${pct}%)` : '오늘 수업 활동 없음';
+}
+
+function renderStats(stats) {
+  document.getElementById('stat-ar').textContent     = stats.arCount;
+  document.getElementById('stat-quiz').textContent   = stats.quizCount;
+  document.getElementById('stat-motion').textContent = stats.motionCount;
+  document.getElementById('stat-chat').textContent   = stats.chatCount;
+}
+
+function renderStudents(students, classPage) {
+  const el = document.getElementById('student-list');
+  if (!students.length) {
+    el.innerHTML = '<div class="empty-box">오늘 활동한 교육생이 없습니다</div>';
+    return;
+  }
+
+  // 내림차순 정렬 (개인진도 낮은 순 → 먼저 보여주기)
+  students.sort((a, b) => a.personalPage - b.personalPage);
+
+  el.innerHTML = students.map(s => {
+    const behind   = classPage > 0 && classPage - s.personalPage >= 2;
+    const classPct = classPage ? Math.min(100, Math.round(classPage / TOTAL_PAGES * 100)) : 0;
+    const persPct  = s.personalPage ? Math.min(100, Math.round(s.personalPage / TOTAL_PAGES * 100)) : 0;
+    const barClass = behind ? 'warn-bar' : 'personal-bar';
+    const badgeTxt = behind ? `⚠️ ${classPage - s.personalPage}페이지 뒤처짐` : `${s.personalPage}p`;
+    const badgeCls = behind ? 'stu-badge warn' : 'stu-badge';
+
+    return `
+    <div class="stu-item">
+      <div class="stu-top">
+        <span class="stu-name">${esc(s.studentName)}</span>
+        <span class="${badgeCls}">${badgeTxt}</span>
+      </div>
+      <div class="stu-bars">
+        <div class="bar-row">
+          <span class="bar-lbl">집체</span>
+          <div class="bar-track"><div class="bar-fill class-bar" style="width:${classPct}%"></div></div>
+          <span class="bar-page">${classPage || '-'}p</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">개인</span>
+          <div class="bar-track"><div class="bar-fill ${barClass}" style="width:${persPct}%"></div></div>
+          <span class="bar-page">${s.personalPage || '-'}p</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 30초 자동 새로고침 ──
+function startAutoRefresh() {
+  clearInterval(_refreshTimer);
+  clearInterval(_countdownTimer);
+  _secondsLeft = REFRESH_SEC;
+
+  _refreshTimer = setInterval(() => {
+    loadAll();
+    _secondsLeft = REFRESH_SEC;
+  }, REFRESH_SEC * 1000);
+
+  _countdownTimer = setInterval(() => {
+    _secondsLeft--;
+    const pct = (_secondsLeft / REFRESH_SEC) * 100;
+    document.getElementById('refresh-fill').style.width = pct + '%';
+  }, 1000);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

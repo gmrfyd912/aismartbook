@@ -178,6 +178,12 @@
     document.getElementById('sm-user-name').textContent = session.name;
     await FirebaseManager.init();
 
+    // 집체교육 컨텍스트 동기화
+    FirebaseManager.watchClassMode(async active => {
+      const name = active ? (await FirebaseManager.getTeacherName() || '교사') : '';
+      SheetsManager.setClassContext(active, name);
+    });
+
     // 이 페이지에 도달했으면 현재 활성 퀴즈를 '처리됨'으로 표시 (배너 재등장 방지)
     const qRef = FirebaseManager.ref('session/activeQuiz');
     if (qRef) {

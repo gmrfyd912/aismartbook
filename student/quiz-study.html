@@ -213,6 +213,12 @@
 
     await FirebaseManager.init();
 
+    // 집체교육 컨텍스트 동기화
+    FirebaseManager.watchClassMode(async active => {
+      const name = active ? (await FirebaseManager.getTeacherName() || '교사') : '';
+      SheetsManager.setClassContext(active, name);
+    });
+
     // 강사 퀴즈 발사 감지
     FirebaseManager.watchActiveQuiz(quizData => {
       if (!quizData?.timestamp) { hideBanner(); return; }

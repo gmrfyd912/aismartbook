@@ -218,6 +218,12 @@
   SessionManager.requireSession(async (session) => {
     document.getElementById('sm-user-name').textContent = session.name;
     await FirebaseManager.init();
+
+    // 집체교육 컨텍스트 동기화
+    FirebaseManager.watchClassMode(async active => {
+      const name = active ? (await FirebaseManager.getTeacherName() || '교사') : '';
+      SheetsManager.setClassContext(active, name);
+    });
     try {
       const [vision, data] = await Promise.all([
         FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'),

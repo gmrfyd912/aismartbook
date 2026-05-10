@@ -410,9 +410,12 @@ SessionManager.requireSession(async s => {
   await FirebaseManager.init();
 
   // 수업 모드 실시간 감지
-  FirebaseManager.watchClassMode(active => {
+  FirebaseManager.watchClassMode(async active => {
     if (active) disableAITutor();
     else        enableAITutor();
+    // SheetsManager 집체교육 컨텍스트 동기화
+    const teacherName = active ? (await FirebaseManager.getTeacherName() || '교사') : '';
+    SheetsManager.setClassContext(active, teacherName);
   });
 
   // heartbeat 감시 — 교사앱이 5분간 heartbeat 없으면 자동 활성화
@@ -429,10 +432,20 @@ SessionManager.requireSession(async s => {
   prevHistory = await SheetsManager.loadRecentHistory(s.name, 20);
   SheetsManager.updateStudentStatus(s.name, prevHistory.length, '', s.currentUnit || 1);
 
-  // 개인화 인사
+  // 개인화 인사 (집체진도 vs 개인진도 비교 포함)
   const days = SessionManager.getDaysSinceLastAccess();
+  const classPage    = await SheetsManager.getTodayClassProgress();
+  const myProgressRows = await SheetsManager.getAllStudentProgressToday();
+  const myRow        = myProgressRows.find(r => r.studentName === s.name);
+  const myPage       = myRow?.personalPage || 0;
+
   setTimeout(() => {
-    if (prevHistory.length > 0) {
+    if (classPage > 0 && myPage > 0 && classPage - myPage >= 2) {
+      greet(`안녕하세요, ${s.name}님! 오늘 집체교육은 ${classPage}페이지까지 진행됐어요. ` +
+            `개인 진도는 ${myPage}페이지네요. ${myPage + 1}~${classPage}페이지 같이 볼까요?`);
+    } else if (classPage > 0) {
+      greet(`안녕하세요, ${s.name}님! 오늘 집체교육은 ${classPage}페이지까지 나갔어요. 궁금한 부분이 있으면 물어보세요!`);
+    } else if (prevHistory.length > 0) {
       const recentQs = prevHistory.slice(-3).map(h => h.question.slice(0, 20)).join(', ');
       greet(`다시 오셨군요, ${s.name}님! 이전에 "${recentQs}" 등을 공부하셨는데, 오늘은 어떤 부분을 이어서 할까요?`);
     } else if (days >= 3) {
