@@ -367,7 +367,6 @@ const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
 let session          = null;
 let isClassMode      = false;
 let isMuted          = false;
-let micOn            = false;
 let isSpeaking       = false;
 let talkInterval     = null;
 let currentVoice     = null;
@@ -382,20 +381,16 @@ let concSmoothed     = 80;
 let wasClassMode     = false;
 
 // 대화 히스토리
-let chatHistory      = [];   // 현재 세션 멀티턴 (Gemini contents 포맷)
-let prevHistory      = [];   // 이전 세션 기록 (Google Sheets에서 로드)
-const MAX_TURNS      = 20;   // chatHistory에 보관할 최대 메시지 수 (10턴)
+let chatHistory      = [];
+let prevHistory      = [];
+const MAX_TURNS      = 20;
 
-// STT 상태
+// STT 상태 (push-to-talk 방식)
 let recognition      = null;
 let isRecognizing    = false;
-let interimText      = '';
-let lastSentText     = '';   // 중복 전송 방지
-let ttsEndTime           = 0;   // TTS 종료 시각 — deaf window 계산용
-let processedResultCount = 0;   // Chrome resultIndex 누적 버그 방지용 자체 카운터
-let silenceTimer         = null;
-const SILENCE_MS         = 3000;
-const POST_TTS_DEAF_MS   = 1500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
+let isFinalReceived  = false;   // final result 수신 후 추가 이벤트 차단 플래그
+let silenceTimer     = null;
+const SILENCE_MS     = 3000;
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -506,27 +501,16 @@ function speak(text) {
   utt.onstart = () => {
     isSpeaking = true; startTalkAnim();
     clearSilenceTimer();
-    clearInterim();
-    lastSentText = '';   // AI 응답 시작 시 dedup 초기화 — 같은 말 재발화 허용
-    // recognition.abort()으로 즉시 강제 중단 — TTS 음성이 STT로 인식되는 피드백 루프 차단
+    // TTS 재생 중 인식 즉시 중단 (피드백 루프 차단)
     if (isRecognizing) {
       isRecognizing = false;
+      isFinalReceived = false;
       try { recognition.abort(); } catch {}
     }
     updateMicBtn();
   };
-  utt.onend = () => {
-    isSpeaking = false; stopTalkAnim();
-    ttsEndTime = Date.now();   // deaf window 시작
-    updateMicBtn();
-    if (micOn) setTimeout(startRecognition, POST_TTS_DEAF_MS); // 2.5초 후 재개
-  };
-  utt.onerror = () => {
-    isSpeaking = false; stopTalkAnim();
-    ttsEndTime = Date.now();
-    updateMicBtn();
-    if (micOn) setTimeout(startRecognition, POST_TTS_DEAF_MS);
-  };
+  utt.onend  = () => { isSpeaking = false; stopTalkAnim(); updateMicBtn(); };
+  utt.onerror = () => { isSpeaking = false; stopTalkAnim(); updateMicBtn(); };
   window.speechSynthesis.speak(utt);
 }
 
@@ -595,10 +579,10 @@ function greet(text) {
 }
 
 // ══════════════════════════════════════════════
-//  STT — Web Speech API (연속 인식 + 3초 침묵 자동 전송)
+//  STT — push-to-talk 방식
+//  버튼 클릭 → 1회 인식(continuous=false) → 입력창에 삽입 → 3초 침묵 후 자동 전송
 // ══════════════════════════════════════════════
 
-// 한국어 STT가 영어 단어를 음소 변환한 것을 원래 영어로 복원
 const STT_CORRECTIONS = [
   [/재미나이|재미나|제미나이|제미나/gi, 'Gemini'],
   [/플래시/gi,                          'Flash'],
@@ -610,9 +594,7 @@ const STT_CORRECTIONS = [
 
 function normalizeSTT(text) {
   let out = text;
-  for (const [pattern, replacement] of STT_CORRECTIONS) {
-    out = out.replace(pattern, replacement);
-  }
+  for (const [p, r] of STT_CORRECTIONS) out = out.replace(p, r);
   return out;
 }
 
@@ -622,80 +604,88 @@ function initSpeechRecognition() {
 
   recognition = new SR();
   recognition.lang           = 'ko-KR';
-  recognition.continuous     = true;   // 끊김 없는 연속 청취 — continuous=false는 Android에서 재시작 InvalidStateError 유발
+  recognition.continuous     = false;  // 한 발화씩 — 중복 누적 구조적 불가
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
-    if (isSpeaking || Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return;
+    if (isFinalReceived) return;  // final 이후 이벤트 전부 무시
 
-    // Chrome Android 버그: e.resultIndex가 0으로 리셋되어 이미 처리한 결과를 재전달함.
-    // processedResultCount로 자체 추적해 중복 누적 차단.
-    const startIdx = Math.max(e.resultIndex, processedResultCount);
-    let interim = '';
-    for (let i = startIdx; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        processedResultCount = i + 1;
-        interimText += normalizeSTT(e.results[i][0].transcript);
-        resetSilenceTimer();
-      } else {
-        interim += e.results[i][0].transcript;
-      }
+    const inp = document.getElementById('chat-input');
+    let finalText = '', interimText = '';
+
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText   += t;
+      else                       interimText += t;
     }
-    showInterim(interimText + normalizeSTT(interim));
+
+    if (finalText) {
+      // ── 최종 결과 수신 ──
+      isFinalReceived = true;
+      isRecognizing   = false;
+      try { recognition.abort(); } catch {}
+      inp.value = normalizeSTT(finalText);
+      syncInputHeight(inp);
+      updateMicBtn();
+      resetSilenceTimer();   // 3초 후 자동 전송 시작
+    } else {
+      // ── 중간 결과 — 입력창에 미리 표시 ──
+      inp.value = normalizeSTT(interimText);
+      syncInputHeight(inp);
+      resetSilenceTimer();   // interim마다 타이머 리셋
+    }
   };
 
   recognition.onerror = (e) => {
     if (e.error !== 'no-speech') console.warn('[STT]', e.error);
-    isRecognizing = false;
-    if (micOn) scheduleRecognitionRestart();
+    isRecognizing  = false;
+    isFinalReceived = false;
+    updateMicBtn();
   };
 
   recognition.onend = () => {
     isRecognizing = false;
-    if (micOn) scheduleRecognitionRestart();
+    updateMicBtn();
+    // final을 받았으면 silenceTimer가 자동 전송 대기 중 — 별도 재시작 없음
   };
 }
 
-// TTS dead window를 고려한 재시작 예약
-function scheduleRecognitionRestart() {
-  if (isSpeaking || !micOn) return;  // micOn=false이면 예약 안 함
-  const remaining = POST_TTS_DEAF_MS - (Date.now() - ttsEndTime);
-  setTimeout(startRecognition, Math.max(200, remaining));
+function syncInputHeight(inp) {
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 64) + 'px';
 }
 
 function startRecognition() {
-  if (!recognition || isRecognizing || isSpeaking || !micOn) return;
-  const remaining = POST_TTS_DEAF_MS - (Date.now() - ttsEndTime);
-  if (remaining > 0) {
-    // dead window 내: window가 끝나는 시점에 자동 재시도 예약
-    setTimeout(startRecognition, remaining + 50);
-    return;
-  }
-  processedResultCount = 0;
+  if (!recognition || isRecognizing || isSpeaking) return;
+  isFinalReceived = false;
+  clearSilenceTimer();
+  const inp = document.getElementById('chat-input');
+  inp.value = '';
+  syncInputHeight(inp);
   try {
     recognition.start();
     isRecognizing = true;
   } catch (err) {
     isRecognizing = false;
-    if (err.name === 'InvalidStateError') {
-      setTimeout(startRecognition, 500);  // 엔진 전환 중 — 500ms 후 재시도
-    }
+    console.warn('[STT start]', err.name);
   }
+  updateMicBtn();
 }
 
 function stopRecognition() {
   clearSilenceTimer();
-  clearInterim();
-  isRecognizing = false;
-  if (!recognition) return;
-  try { recognition.stop(); } catch {}
-  try { recognition.abort(); } catch {}
+  isRecognizing  = false;
+  isFinalReceived = false;
+  if (recognition) try { recognition.abort(); } catch {}
+  updateMicBtn();
 }
 
 function resetSilenceTimer() {
-  clearSilenceTimer();
+  if (silenceTimer) clearTimeout(silenceTimer);
   silenceTimer = setTimeout(() => {
-    if (interimText.trim()) submitVoiceInput();
+    silenceTimer = null;
+    const inp = document.getElementById('chat-input');
+    if (inp.value.trim()) sendText();
   }, SILENCE_MS);
 }
 
@@ -703,88 +693,27 @@ function clearSilenceTimer() {
   if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
 }
 
-// STT 쓰레기 텍스트 감지 — 단어 반복 또는 구절 반복이 과도하면 true
-function isGarbageSTT(text) {
-  const words = text.trim().split(/\s+/);
-  if (words.length < 4) return false;
-
-  // 1) 단일 단어가 전체의 30% 이상 반복
-  const freq = {};
-  for (const w of words) freq[w] = (freq[w] || 0) + 1;
-  const maxFreq = Math.max(...Object.values(freq));
-  if (maxFreq / words.length >= 0.3) return true;
-
-  // 2) 2~4 단어 구절이 2회 이상 반복 (크롬 resultIndex 누적 패턴)
-  for (let len = 2; len <= 4; len++) {
-    const seenPhrases = {};
-    for (let i = 0; i <= words.length - len; i++) {
-      const phrase = words.slice(i, i + len).join(' ');
-      seenPhrases[phrase] = (seenPhrases[phrase] || 0) + 1;
-      if (seenPhrases[phrase] >= 3) return true;
-    }
-  }
-  return false;
-}
-
-function submitVoiceInput() {
-  clearSilenceTimer();
-  const text = interimText.trim();
-  interimText = '';
-  clearInterim();
-  if (!text) return;
-
-  // 반복 쓰레기 텍스트는 조용히 버림 (사용자에게 보이지 않음)
-  if (isGarbageSTT(text)) return;
-  if (text === lastSentText) return;
-
-  lastSentText = text;
-
-  // 전송 후 recognition abort → onend → scheduleRecognitionRestart
-  // Chrome 내부 resultIndex 누적 상태를 완전히 초기화
-  if (micOn && isRecognizing) {
-    isRecognizing = false;
-    try { recognition.abort(); } catch {}
-  }
-
-  handleUserInput(text);
-}
-
-function showInterim(text) {
-  const el = document.getElementById('interim-bubble');
-  if (!el) return;
-  el.style.display = text.trim() ? 'block' : 'none';
-  el.textContent   = text;
-}
-
-function clearInterim() {
-  interimText = '';
-  showInterim('');
-}
-
 function toggleMic() {
-  micOn = !micOn;
-  if (micOn) {
-    interimText = '';
-    startRecognition();
+  if (isSpeaking) return;    // TTS 중 클릭 완전 무시
+  if (isRecognizing) {
+    stopRecognition();       // 인식 중 → 취소
   } else {
-    // 마이크 끄면 쌓인 텍스트 즉시 전송
-    if (interimText.trim()) submitVoiceInput();
-    else stopRecognition();
+    startRecognition();      // 대기 중 → 인식 시작
   }
-  updateMicBtn();
 }
 
 function updateMicBtn() {
   const btn = document.getElementById('mic-mode-btn');
+  if (!btn) return;
   btn.classList.remove('mic-on', 'mic-tts');
   if (isSpeaking) {
     btn.classList.add('mic-tts');
-    btn.title = 'TTS 재생 중 — 마이크 일시 차단';
-  } else if (micOn) {
+    btn.title = 'AI 말하는 중 — 클릭 불가';
+  } else if (isRecognizing) {
     btn.classList.add('mic-on');
-    btn.title = '마이크 ON — 클릭하여 끄기';
+    btn.title = '인식 중 — 클릭하여 취소';
   } else {
-    btn.title = '마이크 OFF — 클릭하여 켜기';
+    btn.title = '클릭하여 말하기';
   }
 }
 
@@ -817,6 +746,7 @@ function renderMessages(showTyping = false) {
 }
 
 function sendText() {
+  clearSilenceTimer();
   const inp = document.getElementById('chat-input');
   const t   = inp.value.trim();
   if (!t) return;
@@ -1145,7 +1075,6 @@ function disableAITutor() {
   isClassMode  = true;
   wasClassMode = true;
   stopRecognition();
-  micOn = false; updateMicBtn();
   if (isSpeaking) stopSpeak();
   document.getElementById('chat-input').disabled = true;
   document.getElementById('send-btn').disabled   = true;
@@ -1160,10 +1089,10 @@ function enableAITutor() {
   document.getElementById('chat-input').disabled = false;
   document.getElementById('send-btn').disabled   = false;
   document.getElementById('class-overlay').style.display = 'none';
-  if (micOn && !isRecognizing) startRecognition();
+  // push-to-talk 방식: 수업 종료 후에도 사용자가 직접 마이크 버튼을 눌러야 함
   if (wasDis) {
     setTimeout(() => {
-      const msg = '수업이 종료됐어요! 복습이 필요한 부분 있으면 물어보세요 😊';
+      const msg = '수업이 종료됐어요! 복습이 필요한 부분 있으면 마이크를 눌러 물어보세요 😊';
       addMessage('tutor', msg);
       speak(msg);
     }, 800);
