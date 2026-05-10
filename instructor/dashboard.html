@@ -103,6 +103,99 @@
     .no-students { text-align: center; padding: 2rem; color: #555; font-size: 0.85rem; }
 
     .firebase-note { font-size: 0.72rem; color: #555; text-align: center; padding: 0.5rem 1rem 1rem; }
+
+    /* ══ AI 조교 캐릭터 ══ */
+    #ta-char {
+      position: fixed; z-index: 200;
+      top: 60px; right: 0;
+      width: clamp(100px, 22vw, 180px);
+      height: clamp(120px, 25vw, 200px);
+      overflow: hidden; cursor: grab; touch-action: none;
+    }
+    #ta-char-img {
+      width: 100%; height: 200%;
+      object-fit: cover; object-position: top center;
+      pointer-events: none;
+    }
+    #ta-char-fallback { display: none; font-size: 3.5rem; text-align: center; padding-top: 0.8rem; }
+
+    /* ══ AI 조교 채팅 패널 ══ */
+    #ta-panel {
+      position: fixed; z-index: 201;
+      bottom: 0; left: 0; right: 0;
+      max-height: 52vh;
+      background: rgba(12,12,22,0.97);
+      border-top: 1.5px solid rgba(79,142,247,0.35);
+      border-radius: 1.2rem 1.2rem 0 0;
+      display: none; flex-direction: column;
+      backdrop-filter: blur(16px);
+    }
+    #ta-panel.open { display: flex; }
+    #ta-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.7rem 1rem 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.85rem; font-weight: bold; color: #aad; flex-shrink: 0;
+    }
+    #ta-close { background: none; border: none; color: #666; font-size: 1rem; cursor: pointer; padding: 0.2rem 0.5rem; }
+    #ta-msgs {
+      flex: 1; overflow-y: auto; padding: 0.8rem 1rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .ta-msg { max-width: 82%; padding: 0.55rem 0.85rem; border-radius: 1rem; font-size: 0.82rem; line-height: 1.5; word-break: break-word; }
+    .ta-msg-user { align-self: flex-end; background: #2a4a8f; color: #e8f0ff; border-radius: 1rem 1rem 0.3rem 1rem; }
+    .ta-msg-ai   { align-self: flex-start; background: rgba(255,255,255,0.08); color: #ddd; border-radius: 1rem 1rem 1rem 0.3rem; }
+    .ta-thinking { color: #666; font-style: italic; animation: taBlink 1.2s ease-in-out infinite; }
+    @keyframes taBlink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #ta-input-row {
+      display: flex; align-items: flex-end; gap: 0.5rem;
+      padding: 0.6rem 1rem; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+    }
+    #ta-inp {
+      flex: 1; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 0.8rem;
+      color: #fff; padding: 0.5rem 0.8rem; font-size: 0.85rem;
+      resize: none; outline: none; min-height: 38px; max-height: 120px;
+    }
+    #ta-inp::placeholder { color: rgba(255,255,255,0.3); }
+    #ta-mic, #ta-send {
+      background: rgba(79,142,247,0.18); border: 1px solid rgba(79,142,247,0.35);
+      border-radius: 0.7rem; color: #fff; width: 38px; height: 38px;
+      cursor: pointer; font-size: 1rem; flex-shrink: 0; transition: background 0.15s;
+    }
+    #ta-send { background: rgba(79,142,247,0.32); }
+    #ta-mic:active, #ta-send:active { background: rgba(79,142,247,0.5); }
+
+    /* ══ 팝업 ══ */
+    #ta-popup {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.72);
+      display: none; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #ta-popup.open { display: flex; }
+    #ta-popup-box {
+      background: #1a1a2e; border-radius: 1.2rem; padding: 1.2rem;
+      width: 100%; max-width: 420px; max-height: 70vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem;
+    }
+    #ta-popup-title { font-size: 1rem; font-weight: bold; color: #4f8ef7; }
+    #ta-popup-body  { font-size: 0.82rem; line-height: 1.6; color: #ccc; }
+    #ta-popup-close {
+      background: rgba(255,255,255,0.1); border: none; border-radius: 0.7rem;
+      color: #aaa; padding: 0.55rem; font-size: 0.82rem; cursor: pointer;
+    }
+    .ta-stu-detail { display: flex; flex-direction: column; gap: 0.5rem; }
+    .ta-stu-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.45rem 0.6rem; background: rgba(255,255,255,0.05);
+      border-radius: 0.5rem; font-size: 0.82rem;
+    }
+    .ta-stu-row strong { color: #fff; }
+    .ta-chat-history { display: flex; flex-direction: column; gap: 0.65rem; }
+    .ta-chat-entry { background: rgba(255,255,255,0.04); border-radius: 0.6rem; padding: 0.6rem; }
+    .ta-chat-q    { color: #cce; font-size: 0.78rem; margin-bottom: 0.2rem; }
+    .ta-chat-a    { color: #aac; font-size: 0.75rem; margin-bottom: 0.15rem; }
+    .ta-chat-meta { color: #555; font-size: 0.68rem; }
   </style>
 </head>
 <body>
@@ -220,6 +313,7 @@
 
 <script src="../js/config.js"></script>
 <script src="../js/firebase-manager.js"></script>
+<script src="../js/sheets-manager.js"></script>
 
 <script>
   // ── 강사 인증 ──────────────────────────────────────────────
@@ -591,6 +685,339 @@
   function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+</script>
+
+<!-- AI 조교 HTML -->
+<div id="ta-char" title="AI 조교 — 클릭하여 대화">
+  <img id="ta-char-img" src="../assets/instructor_idle.png" alt="AI 조교">
+  <div id="ta-char-fallback">🪖</div>
+</div>
+
+<div id="ta-panel">
+  <div id="ta-panel-header">
+    <span>🤖 AI 조교</span>
+    <button id="ta-close">✕</button>
+  </div>
+  <div id="ta-msgs"></div>
+  <div id="ta-input-row">
+    <textarea id="ta-inp" placeholder="선생님, 무엇이든 물어보세요..." rows="1"></textarea>
+    <button id="ta-mic" title="마이크">🎤</button>
+    <button id="ta-send" title="전송">➤</button>
+  </div>
+</div>
+
+<div id="ta-popup">
+  <div id="ta-popup-box">
+    <div id="ta-popup-title"></div>
+    <div id="ta-popup-body"></div>
+    <button id="ta-popup-close">닫기</button>
+  </div>
+</div>
+
+<!-- AI 조교 스크립트 -->
+<script>
+const TA_PROXY = 'https://orange-resonance-c0d3.gmrfyd912.workers.dev';
+
+const TA_SYSTEM = `당신은 강사 대시보드의 AI 조교입니다. 아래 규칙을 반드시 지키세요.
+
+[역할]
+- 강사를 도와 교육생 현황을 파악하고 대시보드를 제어합니다
+- 강사를 항상 '선생님'으로 호칭합니다
+- 간결하고 명확하게 답변합니다
+- 한국어로만 답변합니다
+
+[대시보드 구성]
+- 집체교육 모드: 수업 시작/종료 버튼. 수업 시작 시 교육생 AI 음성이 꺼지고 강사 카메라가 활성화됩니다.
+- 강사 카메라 집중도: FaceMesh로 학생 집중도를 실시간 분석 (EAR + 시선 방향)
+- 현황 통계: 접속 중인 교육생 수, 평균 집중도, 집중도 낮음 인원, 퀴즈 완료 수
+- 퀴즈 발사: 단원 선택 후 전체 교육생에게 퀴즈 즉시 발송 (30초 후 자동 종료)
+- 교육생 현황: 실시간 접속자 목록, 집중도 표시
+- 실시간 모니터링: monitor.html로 이동, 집중도 그래프·퀴즈 결과 집계
+
+[실행 가능한 액션]
+선생님이 요청하면 응답 마지막에 해당 태그를 포함하세요. 태그는 화면에 표시되지 않습니다.
+
+- 특정 학생 현황: [ACTION:show_student:학생이름]
+- 전체 교육생 현황: [ACTION:show_all_students]
+- 퀴즈 발송/시작: [ACTION:start_quiz]
+- 오늘 출석/접속 현황: [ACTION:show_attendance]
+- 특정 학생 AI 조교 대화 기록: [ACTION:show_student_chat:학생이름]
+- 집중도 낮은/취약 학생: [ACTION:show_weak_students]
+
+태그 실행 후에는 "○○○ 학생 현황을 불러왔습니다" 형태로 결과를 안내하세요.`;
+
+let taHistory     = [];
+let taSpeaking    = false;
+let taRecognizing = false;
+let taFinalRcv    = false;
+let taSilTimer    = null;
+let taRecognition = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTAChar();
+  initTAPanel();
+  initTAMic();
+});
+
+// ── 캐릭터 드래그 ──
+function initTAChar() {
+  const el = document.getElementById('ta-char');
+  document.getElementById('ta-char-img').onerror = () => {
+    document.getElementById('ta-char-img').style.display = 'none';
+    document.getElementById('ta-char-fallback').style.display = 'block';
+  };
+  const saved = JSON.parse(localStorage.getItem('taCharPos') || 'null');
+  if (saved) { el.style.top = saved.top + 'px'; el.style.right = 'auto'; el.style.left = saved.left + 'px'; }
+
+  let dragging = false, startX, startY, startL, startT;
+  function onDown(e) {
+    const pt = e.touches ? e.touches[0] : e;
+    startX = pt.clientX; startY = pt.clientY;
+    const r = el.getBoundingClientRect(); startL = r.left; startT = r.top;
+    dragging = false; e.preventDefault();
+  }
+  function onMove(e) {
+    const pt = e.touches ? e.touches[0] : e;
+    const dx = pt.clientX - startX, dy = pt.clientY - startY;
+    if (!dragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragging = true;
+    if (!dragging) return;
+    const newL = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startL + dx));
+    const newT = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startT + dy));
+    el.style.left = newL + 'px'; el.style.right = 'auto'; el.style.top = newT + 'px';
+  }
+  function onUp() {
+    if (!dragging) toggleTAPanel();
+    else { const r = el.getBoundingClientRect(); localStorage.setItem('taCharPos', JSON.stringify({ left: r.left, top: r.top })); }
+    dragging = false;
+  }
+  el.addEventListener('mousedown',  onDown);
+  el.addEventListener('touchstart', onDown, { passive: false });
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchend',  onUp);
+}
+
+// ── 패널 ──
+function initTAPanel() {
+  document.getElementById('ta-close').addEventListener('click', closeTAPanel);
+  document.getElementById('ta-popup-close').addEventListener('click', closeTAPopup);
+  document.getElementById('ta-send').addEventListener('click', taSend);
+  const inp = document.getElementById('ta-inp');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); taSend(); } });
+  inp.addEventListener('input',   () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; });
+  taAddMsg('ai', '안녕하세요 선생님! 교육생 현황, 퀴즈 발송, 집중도 확인 등을 말씀해 주세요. 🎓');
+}
+
+function toggleTAPanel() {
+  const p = document.getElementById('ta-panel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) document.getElementById('ta-inp').focus();
+}
+function closeTAPanel() { document.getElementById('ta-panel').classList.remove('open'); }
+
+function taAddMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = `ta-msg ta-msg-${role}`; el.textContent = text;
+  const msgs = document.getElementById('ta-msgs');
+  msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+}
+function taThinking(on) {
+  const id = 'ta-thinking-el';
+  if (on) {
+    if (document.getElementById(id)) return;
+    const el = document.createElement('div');
+    el.id = id; el.className = 'ta-msg ta-msg-ai ta-thinking'; el.textContent = '...';
+    const msgs = document.getElementById('ta-msgs'); msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+  } else { document.getElementById(id)?.remove(); }
+}
+
+// ── 전송 ──
+async function taSend() {
+  const inp  = document.getElementById('ta-inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = ''; inp.style.height = 'auto';
+  clearTimeout(taSilTimer);
+  taAddMsg('user', text);
+  taHistory.push({ role: 'user', parts: [{ text }] });
+  taThinking(true);
+  const raw = await taCallGemini();
+  taThinking(false);
+  const { clean, actions } = parseActions(raw);
+  taAddMsg('ai', clean);
+  taHistory.push({ role: 'model', parts: [{ text: clean }] });
+  if (taHistory.length > 40) taHistory.splice(0, 2);
+  taSpeak(clean);
+  actions.forEach(executeAction);
+}
+
+async function taCallGemini() {
+  try {
+    const res = await fetch(TA_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: TA_SYSTEM }] },
+        contents: taHistory,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
+      })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '다시 시도해주세요.';
+  } catch (e) { console.warn('[TA]', e.message); return '일시적인 오류가 발생했습니다.'; }
+}
+
+function parseActions(text) {
+  const actions = [];
+  const clean = text.replace(/\[ACTION:([^\]]+)\]/g, (_, t) => { actions.push(t); return ''; }).trim();
+  return { clean, actions };
+}
+
+async function executeAction(tag) {
+  const i = tag.indexOf(':'), verb = i === -1 ? tag : tag.slice(0, i), param = i === -1 ? '' : tag.slice(i + 1);
+  if      (verb === 'show_student')       await showStudentPopup(param);
+  else if (verb === 'show_all_students')  document.getElementById('students-list')?.scrollIntoView({ behavior: 'smooth' });
+  else if (verb === 'start_quiz')         await startQuizAction();
+  else if (verb === 'show_attendance')    showAttendancePopup();
+  else if (verb === 'show_student_chat')  await showStudentChatPopup(param);
+  else if (verb === 'show_weak_students') showWeakStudentsPopup();
+}
+
+// ── 팝업 ──
+function openTAPopup(title, html) {
+  document.getElementById('ta-popup-title').textContent = title;
+  document.getElementById('ta-popup-body').innerHTML = html;
+  document.getElementById('ta-popup').classList.add('open');
+}
+function closeTAPopup() { document.getElementById('ta-popup').classList.remove('open'); }
+
+function getActiveStudents() {
+  const cutoff = Date.now() - 3600000;
+  return dedupeByName(Object.entries(studentsData || {}).filter(([, s]) => s.lastSync > cutoff)).map(([, s]) => s);
+}
+
+function showStudentPopup(name) {
+  if (!name) return;
+  const students = getActiveStudents();
+  const s = students.find(s => s.name === name || (s.name || '').includes(name));
+  if (!s) { openTAPopup(escHtml(name) + ' 학생', '<p style="color:#888">현재 접속 중이지 않거나 기록이 없습니다.</p>'); return; }
+  const conc = s.concentration ?? 100;
+  const cc = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
+  const cl = conc >= 70 ? '집중 양호' : conc >= 40 ? '보통' : '집중도 낮음';
+  openTAPopup(escHtml(s.name) + ' 학생 현황', `
+    <div class="ta-stu-detail">
+      <div class="ta-stu-row"><span>집중도</span><strong style="color:${cc}">${conc}% (${cl})</strong></div>
+      <div class="ta-stu-row"><span>학습 단원</span><strong>${s.progress?.currentUnit || 1}단원</strong></div>
+      <div class="ta-stu-row"><span>상태</span><strong>접속 중</strong></div>
+    </div>`);
+}
+
+async function startQuizAction() {
+  try {
+    await FirebaseManager.launchQuiz({ unit: null, count: 5, launchedAt: new Date().toISOString() });
+    taAddMsg('ai', '선생님, 전체 단원 퀴즈를 발송했습니다! 30초 후 자동 종료됩니다. 📝');
+    setTimeout(() => { FirebaseManager.clearQuiz?.(); }, 30000);
+  } catch { taAddMsg('ai', '퀴즈 발송 중 오류가 발생했습니다.'); }
+}
+
+function showAttendancePopup() {
+  const students = getActiveStudents();
+  if (!students.length) { openTAPopup('현재 접속 현황', '<p style="color:#888">접속 중인 교육생이 없습니다.</p>'); return; }
+  const rows = students.map(s => {
+    const conc = s.concentration ?? 100;
+    const cc = conc >= 70 ? '#27ae60' : conc >= 40 ? '#f39c12' : '#e74c3c';
+    return `<div class="ta-stu-row"><span>${escHtml(s.name || '?')}</span><strong style="color:${cc}">${conc}%</strong></div>`;
+  }).join('');
+  openTAPopup(`접속 중인 교육생 (${students.length}명)`, `<div class="ta-stu-detail">${rows}</div>`);
+}
+
+async function showStudentChatPopup(name) {
+  if (!name) return;
+  try {
+    const history = await SheetsManager.loadRecentHistory(name, 10);
+    if (!history.length) { openTAPopup(escHtml(name) + ' 대화 기록', '<p style="color:#888">대화 기록이 없습니다.</p>'); return; }
+    const rows = history.map(h => `
+      <div class="ta-chat-entry">
+        <div class="ta-chat-q">Q: ${escHtml(h.question)}</div>
+        <div class="ta-chat-a">A: ${escHtml(h.answer.slice(0, 120))}${h.answer.length > 120 ? '...' : ''}</div>
+        <div class="ta-chat-meta">${escHtml(h.date)} ${escHtml(h.time)}${h.pageNumber ? ' · ' + h.pageNumber + 'p' : ''}</div>
+      </div>`).join('');
+    openTAPopup(escHtml(name) + ' AI 조교 대화 기록', `<div class="ta-chat-history">${rows}</div>`);
+  } catch { openTAPopup(escHtml(name) + ' 대화 기록', '<p>데이터를 불러올 수 없습니다.</p>'); }
+}
+
+function showWeakStudentsPopup() {
+  const students = getActiveStudents();
+  const weak = students.filter(s => (s.concentration ?? 100) < 40);
+  if (!weak.length) { openTAPopup('집중도 낮은 교육생', '<p style="color:#27ae60">집중도 낮은 교육생이 없습니다. 훌륭합니다!</p>'); return; }
+  const rows = weak.sort((a, b) => (a.concentration ?? 100) - (b.concentration ?? 100))
+    .map(s => `<div class="ta-stu-row" style="color:#f88"><span>${escHtml(s.name || '?')}</span><strong>${s.concentration ?? 0}%</strong></div>`).join('');
+  openTAPopup(`집중도 낮은 교육생 (${weak.length}명)`, `<div class="ta-stu-detail">${rows}</div>`);
+}
+
+// ── TTS ──
+function taSpeak(text) {
+  if (!window.speechSynthesis || !text) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text.slice(0, 200));
+  utt.lang = 'ko-KR'; utt.rate = 1.05;
+  taSpeaking = true; updateTAMicBtn();
+  utt.onend = utt.onerror = () => { taSpeaking = false; updateTAMicBtn(); };
+  window.speechSynthesis.speak(utt);
+}
+
+// ── STT (push-to-talk) ──
+function initTAMic() {
+  document.getElementById('ta-mic').addEventListener('click', toggleTAMic);
+}
+function updateTAMicBtn() {
+  const btn = document.getElementById('ta-mic');
+  if (!btn) return;
+  if (taSpeaking)        { btn.textContent = '🔊'; btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; }
+  else if (taRecognizing){ btn.textContent = '⏹'; btn.style.opacity = '1';   btn.style.pointerEvents = ''; }
+  else                   { btn.textContent = '🎤'; btn.style.opacity = '1';   btn.style.pointerEvents = ''; }
+}
+function toggleTAMic() {
+  if (taSpeaking) return;
+  if (taRecognizing) taStopRec(); else taStartRec();
+}
+function taStartRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('이 브라우저는 음성 인식을 지원하지 않습니다.'); return; }
+  if (taRecognition) { try { taRecognition.abort(); } catch {} taRecognition = null; }
+  taFinalRcv = false;
+  taRecognition = new SR();
+  taRecognition.lang = 'ko-KR'; taRecognition.continuous = false; taRecognition.interimResults = true;
+  taRecognition.onstart = () => { taRecognizing = true; updateTAMicBtn(); };
+  taRecognition.onresult = (e) => {
+    if (taFinalRcv) return;
+    const inp = document.getElementById('ta-inp');
+    let finalText = '', interimText = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t; else interimText += t;
+    }
+    if (finalText) {
+      taFinalRcv = true; taRecognizing = false;
+      try { taRecognition.abort(); } catch {}
+      inp.value = finalText; inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+      updateTAMicBtn(); clearTimeout(taSilTimer); taSilTimer = setTimeout(taSend, 3000);
+    } else { inp.value = interimText; }
+  };
+  taRecognition.onerror = (e) => { if (e.error !== 'no-speech') console.warn('[TA STT]', e.error); taRecognizing = false; taFinalRcv = false; updateTAMicBtn(); };
+  taRecognition.onend   = () => { taRecognizing = false; updateTAMicBtn(); };
+  try {
+    taRecognition.start();
+    taSilTimer = setTimeout(() => { if (taRecognizing) taStopRec(); }, 20000);
+  } catch (e) { console.warn('[TA STT start]', e); taRecognizing = false; updateTAMicBtn(); }
+}
+function taStopRec() {
+  clearTimeout(taSilTimer); taRecognizing = false; taFinalRcv = false;
+  try { taRecognition?.stop(); } catch {}
+  updateTAMicBtn();
+}
 </script>
 </body>
 </html>
