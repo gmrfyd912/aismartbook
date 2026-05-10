@@ -99,17 +99,19 @@
       display: none;
     }
 
-    /* ── 채팅창 (좌측 하단) ── */
+    /* ── 채팅창 (전체 너비 하단) ── */
     #chat-window {
       position: fixed;
-      bottom: 0.8rem;
-      left: 0.65rem;
-      width: 61%;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
       max-height: 44vh;
       z-index: 10;
       display: flex;
       flex-direction: column;
       gap: 0.38rem;
+      padding: 0 0.65rem 0.65rem;
     }
 
     /* 빠른 질문 버튼 */
@@ -213,7 +215,7 @@
     /* ── AI 캐릭터 (드래그 가능) ── */
     #char-container {
       position: fixed;
-      z-index: 15;
+      z-index: 9999;
       top: 3rem;          /* JS가 헤더 실제 높이로 덮어씀 */
       right: 0;
       width: 88%;         /* 현재 44%의 2배 */
@@ -236,7 +238,7 @@
     #char-img {
       width: 100%;
       height: 168vh;         /* 현재 84vh의 2배 — 컨테이너가 50% 클리핑 */
-      object-fit: contain;
+      object-fit: cover;
       object-position: top center;
       user-select: none;
       -webkit-user-drag: none;
@@ -253,10 +255,15 @@
       background: transparent !important;
     }
 
-    /* ── 마이크 ON 상태 표시 ── */
+    /* ── 마이크 버튼 3상태 ── */
     #mic-mode-btn.mic-on {
-      background: rgba(220,50,47,0.78) !important;
+      background: rgba(220,50,47,0.78) !important;   /* 녹음 중 — 빨강 */
       box-shadow: 0 0 8px rgba(220,50,47,0.55);
+    }
+    #mic-mode-btn.mic-tts {
+      background: rgba(90,90,90,0.78) !important;    /* TTS 재생 중 — 회색 */
+      opacity: 0.65;
+      cursor: default;
     }
 
     /* ── 음성 인식 중 실시간 표시 ── */
@@ -379,6 +386,7 @@ const MAX_TURNS      = 20;   // chatHistory에 보관할 최대 메시지 수 (1
 let recognition      = null;
 let isRecognizing    = false;
 let interimText      = '';
+let lastSentText     = '';   // 중복 전송 방지
 let silenceTimer     = null;
 const SILENCE_MS     = 3000;
 
@@ -492,14 +500,22 @@ function speak(text) {
     isSpeaking = true; startTalkAnim();
     clearSilenceTimer();
     clearInterim();
-    // abort()로 즉시 강제 중단 (stop()은 버퍼 처리 후 종료라 TTS 음성이 인식될 수 있음)
+    lastSentText = '';   // AI 응답 시작 시 dedup 초기화 — 같은 말 재발화 허용
+    // recognition.abort()으로 즉시 강제 중단 — TTS 음성이 STT로 인식되는 피드백 루프 차단
     if (isRecognizing) {
       isRecognizing = false;
       try { recognition.abort(); } catch {}
     }
+    updateMicBtn();
   };
-  utt.onend = utt.onerror = () => {
+  utt.onend = () => {
     isSpeaking = false; stopTalkAnim();
+    updateMicBtn();
+    if (micOn) setTimeout(startRecognition, 500);
+  };
+  utt.onerror = () => {
+    isSpeaking = false; stopTalkAnim();
+    updateMicBtn();
     if (micOn) setTimeout(startRecognition, 500);
   };
   window.speechSynthesis.speak(utt);
@@ -658,7 +674,10 @@ function submitVoiceInput() {
   const text = interimText.trim();
   interimText = '';
   clearInterim();
-  if (text) handleUserInput(text);
+  if (text && text !== lastSentText) {
+    lastSentText = text;
+    handleUserInput(text);
+  }
 }
 
 function showInterim(text) {
@@ -688,13 +707,14 @@ function toggleMic() {
 
 function updateMicBtn() {
   const btn = document.getElementById('mic-mode-btn');
-  if (micOn) {
-    btn.textContent = '🎤';
+  btn.classList.remove('mic-on', 'mic-tts');
+  if (isSpeaking) {
+    btn.classList.add('mic-tts');
+    btn.title = 'TTS 재생 중 — 마이크 일시 차단';
+  } else if (micOn) {
     btn.classList.add('mic-on');
     btn.title = '마이크 ON — 클릭하여 끄기';
   } else {
-    btn.textContent = '🎤';
-    btn.classList.remove('mic-on');
     btn.title = '마이크 OFF — 클릭하여 켜기';
   }
 }
@@ -1163,11 +1183,9 @@ function initCharDrag() {
   function onDragMove(e) {
     if (!dragging) return;
     const p    = e.touches?.[0] ?? e;
-    const minT = headerH();                          // 헤더와 겹치지 않는 최솟값
-    const maxT = window.innerHeight - el.offsetHeight;
-    const maxL = window.innerWidth  - el.offsetWidth; // 오른쪽 밖으로 나가지 않음
-    const newL = Math.min(maxL, Math.max(0,    startLeft + p.clientX - startX));
-    const newT = Math.min(maxT, Math.max(minT, startTop  + p.clientY - startY));
+    const minT = headerH();   // 헤더 아래만 제한, 나머지는 자유
+    const newL = startLeft + p.clientX - startX;
+    const newT = Math.max(minT, startTop + p.clientY - startY);
     el.style.left = newL + 'px';
     el.style.top  = newT + 'px';
     e.preventDefault();
