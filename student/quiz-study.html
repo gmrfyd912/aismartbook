@@ -180,6 +180,7 @@
 <script src="../js/firebase-manager.js"></script>
 <script src="../js/quiz-engine.js"></script>
 <script src="../js/ai-tutor.js"></script>
+<script src="../js/sheets-manager.js"></script>
 
 <script>
   let wrongAnswers = [];
@@ -263,6 +264,8 @@
 
     const btnO = document.getElementById('btn-o');
     const btnX = document.getElementById('btn-x');
+
+    SheetsManager.saveQuizResult(SessionManager.get()?.name, result.question, result.correct, result.relatedPage);
 
     if (result.correct) {
       (userAnswer ? btnO : btnX).classList.add('correct-flash');

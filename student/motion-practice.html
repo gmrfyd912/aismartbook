@@ -148,6 +148,7 @@
 <script src="../js/session-manager.js"></script>
 <script src="../js/data-manager.js"></script>
 <script src="../js/ai-tutor.js"></script>
+<script src="../js/sheets-manager.js"></script>
 
 <script type="module">
   import { PoseLandmarker, FilesetResolver }
@@ -272,6 +273,7 @@
     const avg = avgScore();
     showPracticeResult(avg);
     DataManager.saveMotionScore(currentPose.id, avg);
+    SheetsManager.saveMotionResult(SessionManager.get()?.name, currentPose.name, avg >= 70, scoreHistory.length);
     AiTutor.speak(avg >= 80 ? `훌륭해요! ${avg}점을 기록했습니다!` :
                   avg >= 60 ? `${avg}점입니다. 조금만 더 연습하면 완벽해질 거예요!` :
                               `${avg}점입니다. 참고 영상을 다시 보고 처음부터 따라해보세요.`);

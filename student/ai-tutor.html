@@ -353,10 +353,6 @@
 // ══════════════════════════════════════════════
 const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
 
-// Google Sheets 연동: sheets-backend.gs를 배포한 후 Web App URL을 입력하세요
-const SHEETS_WEBAPP_URL = '';
-SheetsManager.configure(SHEETS_WEBAPP_URL);
-
 let session          = null;
 let isClassMode      = false;
 let isMuted          = false;
@@ -429,9 +425,9 @@ SessionManager.requireSession(async s => {
   loadCurriculum();
   updateMicBtn();
 
-  // 이전 학습 기록 로드 (Sheets 미설정이면 빈 배열 반환)
-  prevHistory = await SheetsManager.loadHistory(s.name, 30);
-  SheetsManager.updateStudentStatus(s.name, prevHistory.length);
+  // 이전 학습 기록 로드
+  prevHistory = await SheetsManager.loadRecentHistory(s.name, 20);
+  SheetsManager.updateStudentStatus(s.name, prevHistory.length, '', s.currentUnit || 1);
 
   // 개인화 인사
   const days = SessionManager.getDaysSinceLastAccess();
@@ -747,7 +743,7 @@ async function handleUserInput(text) {
   if (chatHistory.length > MAX_TURNS) chatHistory.splice(0, 2);
 
   if (session) {
-    SheetsManager.saveConversation({ studentName: session.name, question: text, answer });
+    SheetsManager.saveConversation(session.name, text, answer);
     DataManager.saveProgress({ lastAiQuery: text, lastAiResponse: answer.slice(0, 120) });
   }
 }
