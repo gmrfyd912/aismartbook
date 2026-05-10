@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>강사 대시보드</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -757,7 +758,32 @@ document.addEventListener('DOMContentLoaded', () => {
   initTAChar();
   initTAPanel();
   initTAMic();
+  testWorkerConnection();
 });
+
+async function testWorkerConnection() {
+  try {
+    const res = await fetch(TA_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: '테스트' }] },
+        contents: [{ role: 'user', parts: [{ text: '안녕' }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 20 }
+      })
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error('[TA Worker] HTTP', res.status, body);
+      taAddMsg('ai', `⚠️ Cloudflare Workers 오류: HTTP ${res.status}. Cloudflare 대시보드에서 Worker 상태와 API 키를 확인해주세요.`);
+      return;
+    }
+    console.log('[TA Worker] 연결 성공');
+  } catch (e) {
+    console.error('[TA Worker] 연결 실패:', e.message);
+    taAddMsg('ai', `⚠️ Cloudflare Workers 연결 실패 (${e.message}). Worker가 꺼져 있거나 CORS가 미설정된 것 같습니다. Cloudflare 대시보드를 확인해주세요.`);
+  }
+}
 
 // ── 캐릭터 드래그 ──
 function initTAChar() {
