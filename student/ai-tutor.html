@@ -362,7 +362,6 @@
 // ══════════════════════════════════════════════
 //  State
 // ══════════════════════════════════════════════
-const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
 
 let session          = null;
 let isClassMode      = false;
@@ -813,7 +812,7 @@ async function callGemini(query) {
   ];
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    'https://orange-resonance-c0d3.gmrfyd912.workers.dev',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -841,9 +840,6 @@ async function getAiResponse(query) {
     // Gemini가 빈 응답 반환 (safety filter 등) — 교재 폴백 대신 재질문 유도
     return '죄송해요, 잘 이해하지 못했어요. 다시 한 번 말씀해주시겠어요?';
   } catch (e) {
-    if (e.message?.includes('API_KEY_INVALID') || e.message?.includes('400')) {
-      return 'Gemini API 키가 올바르지 않습니다.';
-    }
     console.warn('[Gemini]', e.message);
   }
   // 네트워크·API 오류 시에만 키워드 매칭 폴백
