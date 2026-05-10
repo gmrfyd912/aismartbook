@@ -214,11 +214,11 @@
     #char-container {
       position: fixed;
       z-index: 15;
-      top: 0;
+      top: 3rem;          /* JS가 헤더 실제 높이로 덮어씀 */
       right: 0;
-      width: 44%;
-      height: 52vh;       /* 컨테이너 높이로 하반신 잘라냄 */
-      overflow: hidden;   /* 넘치는 하단 이미지 숨김 */
+      width: 88%;         /* 현재 44%의 2배 */
+      height: 84vh;       /* 이미지 전체 높이(168vh)의 50% — 상반신만 노출 */
+      overflow: hidden;
       cursor: grab;
       touch-action: none;
       user-select: none;
@@ -232,10 +232,10 @@
       to   { transform: translateY(0);     opacity: 1; }
     }
 
-    /* 캐릭터 이미지 — 전신 렌더 후 컨테이너가 상반신만 노출 */
+    /* 캐릭터 이미지 — 전신(168vh) 렌더, 컨테이너(84vh)가 상반신 50%만 노출 */
     #char-img {
       width: 100%;
-      height: 84vh;          /* 전신 기준 높이 유지 */
+      height: 168vh;         /* 현재 84vh의 2배 — 컨테이너가 50% 클리핑 */
       object-fit: contain;
       object-position: top center;
       user-select: none;
@@ -1117,15 +1117,28 @@ function esc(s) {
 //  AI 캐릭터 드래그 이동
 // ══════════════════════════════════════════════
 function initCharDrag() {
-  const el = document.getElementById('char-container');
+  const el     = document.getElementById('char-container');
+  const topBar = document.getElementById('top-bar');
 
-  // 저장된 위치 복원 (없으면 CSS top:0; right:0 기본값 유지)
+  // 헤더 실제 높이를 읽어 반환 (헤더 미감지 시 CSS 기본값 48px 사용)
+  function headerH() { return topBar ? topBar.offsetHeight : 48; }
+
+  // 초기 위치: 헤더 바로 아래 + 화면 오른쪽 끝
+  function applyInitialPos() {
+    el.style.top   = headerH() + 'px';
+    el.style.right = '0';
+    el.style.left  = 'auto';
+  }
+
+  // 저장된 위치 복원 — 헤더 영역 침범 시 초기값으로 대체
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('charPos')); } catch {}
-  if (saved) {
+  if (saved && typeof saved.left === 'number' && saved.top >= headerH()) {
     el.style.right = 'auto';
     el.style.left  = saved.left + 'px';
     el.style.top   = saved.top  + 'px';
+  } else {
+    applyInitialPos();
   }
 
   let dragging = false, startX, startY, startLeft, startTop;
@@ -1138,7 +1151,7 @@ function initCharDrag() {
     const rect = el.getBoundingClientRect();
     startLeft  = rect.left;
     startTop   = rect.top;
-    // right 기반 → left 기반으로 전환
+    // right 기반 → left 기반으로 전환 후 드래그
     el.style.right = 'auto';
     el.style.left  = startLeft + 'px';
     el.style.top   = startTop  + 'px';
@@ -1149,11 +1162,12 @@ function initCharDrag() {
 
   function onDragMove(e) {
     if (!dragging) return;
-    const p      = e.touches?.[0] ?? e;
-    const maxL   = window.innerWidth  - el.offsetWidth;
-    const maxT   = window.innerHeight - el.offsetHeight;
-    const newL   = Math.min(maxL, Math.max(0, startLeft + p.clientX - startX));
-    const newT   = Math.min(maxT, Math.max(0, startTop  + p.clientY - startY));
+    const p    = e.touches?.[0] ?? e;
+    const minT = headerH();                          // 헤더와 겹치지 않는 최솟값
+    const maxT = window.innerHeight - el.offsetHeight;
+    const maxL = window.innerWidth  - el.offsetWidth; // 오른쪽 밖으로 나가지 않음
+    const newL = Math.min(maxL, Math.max(0,    startLeft + p.clientX - startX));
+    const newT = Math.min(maxT, Math.max(minT, startTop  + p.clientY - startY));
     el.style.left = newL + 'px';
     el.style.top  = newT + 'px';
     e.preventDefault();
