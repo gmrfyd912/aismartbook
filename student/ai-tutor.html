@@ -112,6 +112,7 @@
       flex-direction: column;
       gap: 0.38rem;
       padding: 0 0.65rem 0.65rem;
+      padding-right: clamp(80px, 22vw, 120px); /* 캐릭터(20vw) 오른쪽 여백 */
     }
 
     /* 빠른 질문 버튼 */
@@ -216,10 +217,10 @@
     #char-container {
       position: fixed;
       z-index: 9999;
-      top: 3rem;          /* JS가 헤더 실제 높이로 덮어씀 */
+      top: 3rem;           /* JS가 헤더 실제 높이로 덮어씀 */
       right: 0;
-      width: 88%;         /* 현재 44%의 2배 */
-      height: 84vh;       /* 이미지 전체 높이(168vh)의 50% — 상반신만 노출 */
+      width: clamp(72px, 20vw, 110px);   /* 화면 너비 약 20% */
+      height: clamp(94px, 26vw, 143px);  /* 컨테이너 = 이미지 높이의 50% → 상반신 노출 */
       overflow: hidden;
       cursor: grab;
       touch-action: none;
@@ -234,10 +235,10 @@
       to   { transform: translateY(0);     opacity: 1; }
     }
 
-    /* 캐릭터 이미지 — 전신(168vh) 렌더, 컨테이너(84vh)가 상반신 50%만 노출 */
+    /* 캐릭터 이미지 — 전신 렌더(컨테이너 2배 높이), 컨테이너가 상반신 50%만 노출 */
     #char-img {
       width: 100%;
-      height: 168vh;         /* 현재 84vh의 2배 — 컨테이너가 50% 클리핑 */
+      height: clamp(188px, 52vw, 286px); /* 컨테이너 높이의 2배 */
       object-fit: cover;
       object-position: top center;
       user-select: none;
