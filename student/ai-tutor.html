@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>AI 튜터</title>
 
   <!-- Firebase -->
@@ -392,7 +393,7 @@ let lastSentText     = '';   // 중복 전송 방지
 let ttsEndTime       = 0;    // TTS 종료 시각 — deaf window 계산용
 let silenceTimer     = null;
 const SILENCE_MS        = 3000;
-const POST_TTS_DEAF_MS  = 2500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
+const POST_TTS_DEAF_MS  = 3500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -619,15 +620,20 @@ function initSpeechRecognition() {
 
   recognition = new SR();
   recognition.lang           = 'ko-KR';
-  recognition.continuous     = true;
+  // continuous=false: Chrome Android에서 resultIndex가 0으로 리셋되는 버그로
+  // 이미 처리한 결과가 재누적되는 현상을 원천 차단.
+  // 세션당 결과 1개 → 누적 불가 → "같은왜 같은왜..." 패턴 제거.
+  recognition.continuous     = false;
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
-    // TTS 재생 중 또는 deaf window 안이면 전부 무시 (피드백 루프 방지)
+    // TTS 재생 중 또는 deaf window 내: 무시
     if (isSpeaking || Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return;
 
+    // continuous=false이므로 e.results는 항상 현재 발화 1개만 포함
+    // e.resultIndex에 의존하지 않고 results[0] 직접 참조 → 누적 버그 불가
     let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+    for (let i = 0; i < e.results.length; i++) {
       if (e.results[i].isFinal) {
         interimText += normalizeSTT(e.results[i][0].transcript);
         resetSilenceTimer();
@@ -639,21 +645,31 @@ function initSpeechRecognition() {
   };
 
   recognition.onerror = (e) => {
-    if (e.error === 'no-speech') return;
+    if (e.error !== 'no-speech') console.warn('[STT]', e.error);
     isRecognizing = false;
-    if (micOn && !isSpeaking) setTimeout(startRecognition, 800);
+    if (micOn) scheduleRecognitionRestart();
   };
 
   recognition.onend = () => {
     isRecognizing = false;
-    if (micOn && !isSpeaking) setTimeout(startRecognition, 300);
+    if (micOn) scheduleRecognitionRestart();
   };
+}
+
+// TTS 종료 이후 남은 deaf window를 정확히 기다린 뒤 재시작
+function scheduleRecognitionRestart() {
+  if (isSpeaking) return;
+  const elapsed   = Date.now() - ttsEndTime;
+  const remaining = POST_TTS_DEAF_MS - elapsed;
+  setTimeout(startRecognition, Math.max(200, remaining));
 }
 
 function startRecognition() {
   if (!recognition || isRecognizing || isSpeaking) return;
-  if (Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return; // deaf window 안이면 시작 안 함
-  try { recognition.start(); isRecognizing = true; } catch {}
+  if (Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return; // deaf window 내 차단
+  try { recognition.start(); isRecognizing = true; } catch (err) {
+    console.warn('[STT start]', err);
+  }
 }
 
 function stopRecognition() {
@@ -676,13 +692,27 @@ function clearSilenceTimer() {
   if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
 }
 
-// 피드백 루프 쓰레기 텍스트 감지 — 같은 단어/어절이 3회 이상 반복되면 true
+// STT 쓰레기 텍스트 감지 — 단어 반복 또는 구절 반복이 과도하면 true
 function isGarbageSTT(text) {
   const words = text.trim().split(/\s+/);
-  if (words.length < 5) return false;
+  if (words.length < 4) return false;
+
+  // 1) 단일 단어가 전체의 30% 이상 반복
   const freq = {};
   for (const w of words) freq[w] = (freq[w] || 0) + 1;
-  return Math.max(...Object.values(freq)) >= 3;
+  const maxFreq = Math.max(...Object.values(freq));
+  if (maxFreq / words.length >= 0.3) return true;
+
+  // 2) 2~4 단어 구절이 2회 이상 반복 (크롬 resultIndex 누적 패턴)
+  for (let len = 2; len <= 4; len++) {
+    const seenPhrases = {};
+    for (let i = 0; i <= words.length - len; i++) {
+      const phrase = words.slice(i, i + len).join(' ');
+      seenPhrases[phrase] = (seenPhrases[phrase] || 0) + 1;
+      if (seenPhrases[phrase] >= 2) return true;
+    }
+  }
+  return false;
 }
 
 function submitVoiceInput() {
