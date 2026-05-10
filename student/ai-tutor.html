@@ -319,7 +319,8 @@
     <button class="qq-btn" onclick="askQuick('신호수란 무엇인가요?')">신호수란?</button>
     <button class="qq-btn" onclick="askQuick('정지신호 방법을 알려주세요')">정지신호 방법</button>
     <button class="qq-btn" onclick="askQuick('진행신호 방법을 알려주세요')">진행신호 방법</button>
-    <button class="qq-btn" onclick="askQuick('오늘 배운 내용을 복습해주세요')">오늘 복습하기</button>
+    <button class="qq-btn" onclick="askQuick('지금까지 내가 질문한 내용을 바탕으로 학습 요약과 약점을 알려주세요')">학습 요약·약점</button>
+    <button class="qq-btn" onclick="askQuick('이전에 어떤 질문들을 했는지 복기해주고, 아직 다루지 않은 부분도 안내해주세요')">질문 복기</button>
   </div>
   <div id="chat-messages"></div>
   <div id="interim-bubble"></div>
@@ -344,12 +345,17 @@
 <script src="../js/session-manager.js"></script>
 <script src="../js/firebase-manager.js"></script>
 <script src="../js/data-manager.js"></script>
+<script src="../js/sheets-manager.js"></script>
 
 <script>
 // ══════════════════════════════════════════════
 //  State
 // ══════════════════════════════════════════════
 const GEMINI_API_KEY = 'AIzaSyCgjgu3vXiGmcY8VvxaRbC6HBmr9IM9vwo';
+
+// Google Sheets 연동: sheets-backend.gs를 배포한 후 Web App URL을 입력하세요
+const SHEETS_WEBAPP_URL = '';
+SheetsManager.configure(SHEETS_WEBAPP_URL);
 
 let session          = null;
 let isClassMode      = false;
@@ -367,6 +373,11 @@ let cameraStream     = null;
 let concScore        = 80;
 let concSmoothed     = 80;
 let wasClassMode     = false;
+
+// 대화 히스토리
+let chatHistory      = [];   // 현재 세션 멀티턴 (Gemini contents 포맷)
+let prevHistory      = [];   // 이전 세션 기록 (Google Sheets에서 로드)
+const MAX_TURNS      = 20;   // chatHistory에 보관할 최대 메시지 수 (10턴)
 
 // STT 상태
 let recognition      = null;
@@ -418,10 +429,17 @@ SessionManager.requireSession(async s => {
   loadCurriculum();
   updateMicBtn();
 
-  // 인사
+  // 이전 학습 기록 로드 (Sheets 미설정이면 빈 배열 반환)
+  prevHistory = await SheetsManager.loadHistory(s.name, 30);
+  SheetsManager.updateStudentStatus(s.name, prevHistory.length);
+
+  // 개인화 인사
   const days = SessionManager.getDaysSinceLastAccess();
   setTimeout(() => {
-    if (days >= 3) {
+    if (prevHistory.length > 0) {
+      const recentQs = prevHistory.slice(-3).map(h => h.question.slice(0, 20)).join(', ');
+      greet(`다시 오셨군요, ${s.name}님! 이전에 "${recentQs}" 등을 공부하셨는데, 오늘은 어떤 부분을 이어서 할까요?`);
+    } else if (days >= 3) {
       greet(`오랜만이에요! ${days}일 만에 오셨군요. ` +
             `저번에 ${s.currentUnit || 1}단원까지 하셨는데, 핵심만 30초 복습하고 시작할까요?`);
     } else {
@@ -722,18 +740,29 @@ async function handleUserInput(text) {
   const answer = await getAiResponse(text);
   addMessage('tutor', answer);
   speak(answer);
-  if (session) DataManager.saveProgress({ lastAiQuery: text, lastAiResponse: answer.slice(0, 120) });
+
+  // 멀티턴 히스토리 업데이트
+  chatHistory.push({ role: 'user',  parts: [{ text }] });
+  chatHistory.push({ role: 'model', parts: [{ text: answer }] });
+  if (chatHistory.length > MAX_TURNS) chatHistory.splice(0, 2);
+
+  if (session) {
+    SheetsManager.saveConversation({ studentName: session.name, question: text, answer });
+    DataManager.saveProgress({ lastAiQuery: text, lastAiResponse: answer.slice(0, 120) });
+  }
 }
 
 async function callGemini(query) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: `당신은 친절한 AI 튜터입니다. 다음 규칙을 반드시 지키세요.
+  // 이전 세션 학습 기록을 시스템 프롬프트에 포함
+  let histCtx = '';
+  if (prevHistory.length > 0) {
+    const recent = prevHistory.slice(-20);
+    histCtx = '\n\n[이 학생의 이전 학습 기록 (총 ' + prevHistory.length + '회 질문)]\n' +
+      recent.map(h => `- (${h.date}) Q: ${h.question} / A: ${h.answer.slice(0, 80)}`).join('\n') +
+      '\n이 기록을 참고하여 학생의 학습 맥락을 자연스럽게 활용하되, 기록을 그대로 인용하지는 않는다.';
+  }
+
+  const systemText = `당신은 친절한 AI 튜터입니다. 다음 규칙을 반드시 지키세요.
 
 [공통 규칙]
 - 항상 자연스러운 대화체로 답변한다
@@ -742,13 +771,27 @@ async function callGemini(query) {
 - 답변을 거부하거나 회피하지 않는다
 - 모든 답변은 한국어로 한다
 - 어떤 주제로 질문해도 자유롭게 친절하게 답변한다
+- 학생이 "요약", "약점", "복기" 등을 요청하면 이전 학습 기록을 바탕으로 구체적으로 답변한다
 
 [PDF 교재가 제공된 경우]
 - 교재 내용을 우선 참고해서 답변한다
 - 교재에 없는 내용은 "교재에는 나와 있지 않지만, 제가 알고 있는 내용으로 말씀드리면..." 하고 자연스럽게 이어서 답변한다
-- 절대 "교재를 참고하세요"로 끝내지 않는다` }]
-        },
-        contents: [{ role: 'user', parts: [{ text: query }] }],
+- 절대 "교재를 참고하세요"로 끝내지 않는다${histCtx}`;
+
+  // 현재 세션 멀티턴 히스토리 + 현재 질문
+  const contents = [
+    ...chatHistory,
+    { role: 'user', parts: [{ text: query }] }
+  ];
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemText }] },
+        contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
       })
     }
