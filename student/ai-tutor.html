@@ -389,8 +389,10 @@ let recognition      = null;
 let isRecognizing    = false;
 let interimText      = '';
 let lastSentText     = '';   // 중복 전송 방지
+let ttsEndTime       = 0;    // TTS 종료 시각 — deaf window 계산용
 let silenceTimer     = null;
-const SILENCE_MS     = 3000;
+const SILENCE_MS        = 3000;
+const POST_TTS_DEAF_MS  = 2500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -512,13 +514,15 @@ function speak(text) {
   };
   utt.onend = () => {
     isSpeaking = false; stopTalkAnim();
+    ttsEndTime = Date.now();   // deaf window 시작
     updateMicBtn();
-    if (micOn) setTimeout(startRecognition, 500);
+    if (micOn) setTimeout(startRecognition, POST_TTS_DEAF_MS); // 2.5초 후 재개
   };
   utt.onerror = () => {
     isSpeaking = false; stopTalkAnim();
+    ttsEndTime = Date.now();
     updateMicBtn();
-    if (micOn) setTimeout(startRecognition, 500);
+    if (micOn) setTimeout(startRecognition, POST_TTS_DEAF_MS);
   };
   window.speechSynthesis.speak(utt);
 }
@@ -619,8 +623,8 @@ function initSpeechRecognition() {
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
-    // TTS 재생 중이면 결과 전부 무시 (피드백 루프 방지)
-    if (isSpeaking) return;
+    // TTS 재생 중 또는 deaf window 안이면 전부 무시 (피드백 루프 방지)
+    if (isSpeaking || Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return;
 
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -648,6 +652,7 @@ function initSpeechRecognition() {
 
 function startRecognition() {
   if (!recognition || isRecognizing || isSpeaking) return;
+  if (Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return; // deaf window 안이면 시작 안 함
   try { recognition.start(); isRecognizing = true; } catch {}
 }
 
@@ -671,12 +676,21 @@ function clearSilenceTimer() {
   if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
 }
 
+// 피드백 루프 쓰레기 텍스트 감지 — 같은 단어/어절이 3회 이상 반복되면 true
+function isGarbageSTT(text) {
+  const words = text.trim().split(/\s+/);
+  if (words.length < 5) return false;
+  const freq = {};
+  for (const w of words) freq[w] = (freq[w] || 0) + 1;
+  return Math.max(...Object.values(freq)) >= 3;
+}
+
 function submitVoiceInput() {
   clearSilenceTimer();
   const text = interimText.trim();
   interimText = '';
   clearInterim();
-  if (text && text !== lastSentText) {
+  if (text && text !== lastSentText && !isGarbageSTT(text)) {
     lastSentText = text;
     handleUserInput(text);
   }
@@ -838,18 +852,18 @@ async function callGemini(query) {
 }
 
 async function getAiResponse(query) {
-  // 1. Gemini 2.0 Flash
   try {
     const geminiRes = await callGemini(query);
     if (geminiRes) return geminiRes;
+    // Gemini가 빈 응답 반환 (safety filter 등) — 교재 폴백 대신 재질문 유도
+    return '죄송해요, 잘 이해하지 못했어요. 다시 한 번 말씀해주시겠어요?';
   } catch (e) {
     if (e.message?.includes('API_KEY_INVALID') || e.message?.includes('400')) {
-      return 'Gemini API 키가 올바르지 않습니다. 오른쪽 위 ⚙️ 설정에서 키를 확인해주세요.';
+      return 'Gemini API 키가 올바르지 않습니다.';
     }
     console.warn('[Gemini]', e.message);
   }
-
-  // 2. 키워드 매칭 fallback
+  // 네트워크·API 오류 시에만 키워드 매칭 폴백
   return await curriculumAnswer(query);
 }
 
@@ -918,7 +932,7 @@ async function curriculumAnswer(query) {
     }
   }
 
-  return `"${query}"에 대해서는 해당 단원 교재를 다시 확인해보세요. 더 구체적으로 어떤 부분이 궁금하신가요?`;
+  return '죄송해요, 그 부분은 잘 모르겠어요. 다시 한 번 질문해주시겠어요?';
 }
 
 // ══════════════════════════════════════════════
