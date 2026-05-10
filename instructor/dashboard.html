@@ -868,10 +868,21 @@ async function taCallGemini() {
         generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
       })
     });
-    if (!res.ok) throw new Error('API ' + res.status);
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.error('[TA] HTTP', res.status, errBody);
+      throw new Error('HTTP ' + res.status + (errBody ? ': ' + errBody.slice(0, 120) : ''));
+    }
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '다시 시도해주세요.';
-  } catch (e) { console.warn('[TA]', e.message); return '일시적인 오류가 발생했습니다.'; }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '응답이 비어 있습니다. 다시 시도해주세요.';
+  } catch (e) {
+    console.error('[TA Gemini]', e);
+    const msg = e.message || '';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+      return '네트워크 오류: Cloudflare Workers에 연결할 수 없습니다 (CORS 또는 네트워크 문제).';
+    }
+    return `오류 발생: ${msg}`;
+  }
 }
 
 function parseActions(text) {
