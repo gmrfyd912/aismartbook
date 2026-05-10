@@ -390,10 +390,11 @@ let recognition      = null;
 let isRecognizing    = false;
 let interimText      = '';
 let lastSentText     = '';   // 중복 전송 방지
-let ttsEndTime       = 0;    // TTS 종료 시각 — deaf window 계산용
-let silenceTimer     = null;
-const SILENCE_MS        = 3000;
-const POST_TTS_DEAF_MS  = 3500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
+let ttsEndTime           = 0;   // TTS 종료 시각 — deaf window 계산용
+let processedResultCount = 0;   // Chrome resultIndex 누적 버그 방지용 자체 카운터
+let silenceTimer         = null;
+const SILENCE_MS         = 3000;
+const POST_TTS_DEAF_MS   = 3500; // TTS 끝난 후 마이크 무시 구간 (에코 방지)
 
 // ── 자동 개입 상태 ──
 let isInterventionActive  = false;
@@ -620,21 +621,19 @@ function initSpeechRecognition() {
 
   recognition = new SR();
   recognition.lang           = 'ko-KR';
-  // continuous=false: Chrome Android에서 resultIndex가 0으로 리셋되는 버그로
-  // 이미 처리한 결과가 재누적되는 현상을 원천 차단.
-  // 세션당 결과 1개 → 누적 불가 → "같은왜 같은왜..." 패턴 제거.
-  recognition.continuous     = false;
+  recognition.continuous     = true;   // 끊김 없는 연속 청취 — continuous=false는 Android에서 재시작 InvalidStateError 유발
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
-    // TTS 재생 중 또는 deaf window 내: 무시
     if (isSpeaking || Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return;
 
-    // continuous=false이므로 e.results는 항상 현재 발화 1개만 포함
-    // e.resultIndex에 의존하지 않고 results[0] 직접 참조 → 누적 버그 불가
+    // Chrome Android 버그: e.resultIndex가 0으로 리셋되어 이미 처리한 결과를 재전달함.
+    // processedResultCount로 자체 추적해 중복 누적 차단.
+    const startIdx = Math.max(e.resultIndex, processedResultCount);
     let interim = '';
-    for (let i = 0; i < e.results.length; i++) {
+    for (let i = startIdx; i < e.results.length; i++) {
       if (e.results[i].isFinal) {
+        processedResultCount = i + 1;
         interimText += normalizeSTT(e.results[i][0].transcript);
         resetSilenceTimer();
       } else {
@@ -667,8 +666,16 @@ function scheduleRecognitionRestart() {
 function startRecognition() {
   if (!recognition || isRecognizing || isSpeaking) return;
   if (Date.now() - ttsEndTime < POST_TTS_DEAF_MS) return; // deaf window 내 차단
-  try { recognition.start(); isRecognizing = true; } catch (err) {
-    console.warn('[STT start]', err);
+  processedResultCount = 0;  // 새 세션 시작 시 자체 카운터 리셋
+  try {
+    recognition.start();
+    isRecognizing = true;
+  } catch (err) {
+    isRecognizing = false;
+    if (err.name === 'InvalidStateError') {
+      // 엔진이 전환 상태일 때 — 500ms 후 재시도
+      setTimeout(startRecognition, 500);
+    }
   }
 }
 
