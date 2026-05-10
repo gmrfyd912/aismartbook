@@ -202,17 +202,19 @@
   // ── 상태 전환 ─────────────────────────────────────────────────
   function activate(trigger) {
     if (state !== 'idle') return;
-    state = 'active';
+    state = 'speaking';   // TTS 중에 STT 결과 처리 차단
+    stopRec();            // 인사말 TTS가 마이크에 잡히지 않도록 먼저 중단
     history = [];
     clearMsgs();
     panelOpen(true);
     const greeting = `네, ${userName || '선생님'}! 궁금한 사항이 있으신가요?`;
-    setStatus('듣는 중...');
+    setStatus('말하는 중...');
     setLatest(greeting);
     addMsg('ai', greeting);
     speak(greeting, () => {
+      state = 'active';
       setStatus('듣는 중...');
-      if (!SKIP_REC) restartRec();
+      if (!SKIP_REC) startRec();
     });
     resetIdleTimer();
   }
